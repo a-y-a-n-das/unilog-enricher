@@ -17,10 +17,8 @@ PROMPT_PATH = (
     / "generate_queries.md"
 )
 
-
 class QueryGenerationResult(BaseModel):
     queries: list[str] = Field(default_factory=list)
-
 
 def load_prompt() -> str:
     if not PROMPT_PATH.exists():

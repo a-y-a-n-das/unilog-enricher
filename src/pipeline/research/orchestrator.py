@@ -179,7 +179,7 @@ class ResearchOrchestrator:
             self.resource_resolver.resolve_pdf_links(
                 links=page.links,
                 source_url=url,
-                seen_urls=resolver_seen_urls,
+                seen_urls=resolver_seen_urls
             )
         )
 

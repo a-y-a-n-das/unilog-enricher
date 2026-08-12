@@ -206,6 +206,7 @@ def _prepare_selector_candidates(
     results: list[SearchResult],
 ) -> list[SearchResult]:
 
+
     original_count = len(results)
 
     # 1. Remove obvious junk.
