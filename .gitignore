@@ -55,3 +55,6 @@ temp/
 # OS files
 Thumbs.db
 .DS_Store
+
+src/test1.py
+src/test2.py

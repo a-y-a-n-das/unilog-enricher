@@ -47,6 +47,123 @@ class ResourceResolver:
             seen_urls=set(),
             target_terms=target_terms,
         )
+    def resolve_pdf_links(
+        self,
+        links: list[str],
+        source_url: str | None = None,
+        seen_urls: set[str] | None = None,
+        max_resources: int | None = None,
+        ) -> list[Document]:
+        """
+        Resolve only PDF resources from a set of links.
+
+        This performs exactly one level of expansion:
+
+            webpage
+                -> immediate links
+                -> PDF links only
+                -> PDF documents
+
+        Non-PDF webpages are ignored and never scraped.
+
+        Filtering remains deterministic and zero-network until
+        document-looking URLs reach PDF detection.
+        """
+        if seen_urls is None:
+            seen_urls = set()
+
+        if max_resources is None:
+            max_resources = self.max_resources
+
+        possible_pdf_urls: list[str] = []
+        pdf_urls: list[str] = []
+
+        # =============================================================
+        # Stage 1: Cheap, zero-network filtering
+        # =============================================================
+        for link in links:
+            if len(pdf_urls) >= max_resources:
+                LOGGER.info(
+                    "[Resolver] PDF resource limit reached: %d",
+                    max_resources,
+                )
+                break
+
+            url = self._normalize_url(link)
+
+            if not self._is_supported_url(url):
+                continue
+
+            if not self._is_relevant_url(url):
+                LOGGER.info(
+                    "[Resolver] Skipping irrelevant URL: %s",
+                    url,
+                )
+                continue
+
+            if url in seen_urls:
+                continue
+
+            seen_urls.add(url)
+
+            # ---------------------------------------------------------
+            # Explicit PDF URL.
+            # ---------------------------------------------------------
+            if self._is_pdf_url(url):
+                LOGGER.info(
+                    "[Resolver] PDF link: %s",
+                    url,
+                )
+
+                pdf_urls.append(url)
+                continue
+
+            # ---------------------------------------------------------
+            # Only document-looking URLs reach network PDF detection.
+            # ---------------------------------------------------------
+            if self._looks_like_document_url(url):
+                possible_pdf_urls.append(url)
+
+        # =============================================================
+        # Stage 2: Parallel PDF detection
+        # =============================================================
+        detected_pdf_urls = self._detect_pdfs_parallel(
+            possible_pdf_urls
+        )
+
+        for url in detected_pdf_urls:
+            if url not in pdf_urls:
+                pdf_urls.append(url)
+
+        # Respect limit.
+        pdf_urls = pdf_urls[:max_resources]
+
+        # =============================================================
+        # Stage 3: Download + parse PDFs
+        # =============================================================
+        documents: list[Document] = []
+
+        for url in pdf_urls:
+            LOGGER.info(
+                "[Resolver] Processing PDF: %s",
+                url,
+            )
+
+            document = self._process_pdf(
+                url,
+                source_url=source_url,
+            )
+
+            if document is not None:
+                documents.append(document)
+
+        LOGGER.info(
+            "[Resolver] Resolved %d PDF documents from %d links",
+            len(documents),
+            len(links),
+        )
+
+        return documents
 
     def _resolve_links(
         self,
@@ -291,7 +408,8 @@ class ResourceResolver:
     def _process_pdf(
         self,
         url: str,
-    ) -> Document | None:
+        source_url: str | None = None,
+        ) -> Document | None:
         try:
             pdf_path = self.downloader.download(url)
 
@@ -301,6 +419,11 @@ class ResourceResolver:
                 "url",
                 url,
             )
+
+            if source_url:
+                document.metadata["source_url"] = source_url
+
+            document.metadata["document_type"] = "pdf"
 
             return document
 

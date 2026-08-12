@@ -71,7 +71,9 @@ def assess_pdf_text_quality(
 
             if chars > 0:
                 alpha_chars = sum(
-                    1 for char in text if char.isalnum()
+                    1
+                    for char in text
+                    if char.isalnum()
                 )
                 total_alpha_chars += alpha_chars
 
@@ -103,7 +105,9 @@ def assess_pdf_text_quality(
             else 0.0
         )
 
-        pages_with_text_fraction = pages_with_text / page_count
+        pages_with_text_fraction = (
+            pages_with_text / page_count
+        )
 
         metrics = {
             "page_count": page_count,
@@ -117,8 +121,14 @@ def assess_pdf_text_quality(
                 avg_words_per_page,
                 1,
             ),
-            "alpha_ratio": round(alpha_ratio, 3),
-            "repeated_ratio": round(repeated_ratio, 3),
+            "alpha_ratio": round(
+                alpha_ratio,
+                3,
+            ),
+            "repeated_ratio": round(
+                repeated_ratio,
+                3,
+            ),
             "pages_with_text": pages_with_text,
             "pages_with_text_fraction": round(
                 pages_with_text_fraction,
@@ -136,7 +146,8 @@ def assess_pdf_text_quality(
                 >= config.min_avg_words_per_page
             ),
             "alpha_ratio": (
-                alpha_ratio >= config.min_alpha_ratio
+                alpha_ratio
+                >= config.min_alpha_ratio
             ),
             "repeated_ratio": (
                 repeated_ratio
@@ -177,7 +188,8 @@ class PDFParser:
         fast_path_config: OCRFastPathConfig | None = None,
     ) -> None:
         self.fast_path_config = (
-            fast_path_config or DEFAULT_FAST_PATH_CONFIG
+            fast_path_config
+            or DEFAULT_FAST_PATH_CONFIG
         )
 
     def parse(
@@ -195,16 +207,6 @@ class PDFParser:
             raise ValueError(
                 f"PDF path is not a file: {pdf_path}"
             )
-
-        image_dir = (
-            pdf_path.parent
-            / "images"
-            / pdf_path.stem
-        )
-        image_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
 
         start = perf_counter()
 
@@ -228,7 +230,6 @@ class PDFParser:
             content, page_sources = (
                 self._parse_without_ocr(
                     pdf_path,
-                    image_dir,
                 )
             )
 
@@ -247,7 +248,6 @@ class PDFParser:
             content, page_sources = (
                 self._parse_with_ocr(
                     pdf_path,
-                    image_dir,
                 )
             )
 
@@ -261,17 +261,6 @@ class PDFParser:
 
         with pymupdf.open(pdf_path) as doc:
             page_count = len(doc)
-
-        extracted_images = sorted(
-            str(path.relative_to(pdf_path.parent))
-            for pattern in (
-                "*.png",
-                "*.jpg",
-                "*.jpeg",
-                "*.webp",
-            )
-            for path in image_dir.glob(pattern)
-        )
 
         native_pages = sum(
             source == "native"
@@ -289,7 +278,7 @@ class PDFParser:
             "extension": pdf_path.suffix.lower(),
             "size_bytes": pdf_path.stat().st_size,
             "page_count": page_count,
-            "image_count": len(extracted_images),
+            "image_count": 0,
             "sha256": sha256,
             "parser": f"pymupdf4llm_{parser_mode}",
             "parse_time_seconds": round(
@@ -316,21 +305,19 @@ class PDFParser:
             source="pdf",
             content=content,
             metadata=metadata,
-            images=extracted_images,
+            images=[],
             links=[],
         )
 
     def _parse_without_ocr(
         self,
         pdf_path: Path,
-        image_dir: Path,
     ) -> tuple[str, list[str]]:
         """Parse a clearly text-based PDF without OCR."""
 
         content = pymupdf4llm.to_markdown(
             pdf_path,
-            write_images=True,
-            image_path=str(image_dir),
+            write_images=False,
             use_ocr=False,
         )
 
@@ -342,14 +329,12 @@ class PDFParser:
     def _parse_with_ocr(
         self,
         pdf_path: Path,
-        image_dir: Path,
     ) -> tuple[str, list[str]]:
         """Parse a PDF with OCR enabled."""
 
         content = pymupdf4llm.to_markdown(
             pdf_path,
-            write_images=True,
-            image_path=str(image_dir),
+            write_images=False,
             use_ocr=True,
         )
 
