@@ -7,7 +7,7 @@ from models.document_models import Document
 from pipeline.ingestion.pdf_fetcher import Downloader
 from pipeline.ingestion.pdf_parser import PDFParser
 from pipeline.ingestion.web_scraper import WebScraper
-
+from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ class ResourceResolver:
         document: Document,
         product: str | None = None,
         target_terms: list[str] | None = None,
+        workspace: Path | None = None,
     ) -> list[Document]:
         """
         Resolve useful resources discovered in a document.
@@ -69,6 +70,7 @@ class ResourceResolver:
             document.links,
             seen_urls=set(),
             target_terms=target_terms,
+            workspace=workspace,
         )
 
     def resolve_pdf_links(
@@ -77,7 +79,8 @@ class ResourceResolver:
         source_url: str | None = None,
         seen_urls: set[str] | None = None,
         max_resources: int | None = None,
-    ) -> list[Document]:
+        workspace: Path | None = None,
+    ) -> tuple[list[Document], set[str]]:
         """
         Resolve only PDF resources from a set of links.
 
@@ -210,6 +213,7 @@ class ResourceResolver:
             document = self._process_pdf(
                 url,
                 source_url=source_url,
+                workspace=workspace,
             )
 
             if document is not None:
@@ -221,7 +225,7 @@ class ResourceResolver:
             len(links),
         )
 
-        return documents
+        return documents, set(pdf_urls)
 
     def _resolve_links(
         self,
@@ -229,6 +233,7 @@ class ResourceResolver:
         seen_urls: set[str] | None = None,
         target_terms: list[str] | None = None,
         max_resources: int | None = None,
+        workspace: Path | None = None,
     ) -> list[Document]:
         """
         Resolve both PDF and webpage resources.
@@ -372,7 +377,8 @@ class ResourceResolver:
             )
 
             document = self._process_pdf(
-                url
+                url,
+                workspace=workspace,
             )
 
             if document is not None:
@@ -542,10 +548,12 @@ class ResourceResolver:
         self,
         url: str,
         source_url: str | None = None,
+        workspace: Path | None = None,
     ) -> Document | None:
         try:
             pdf_path = self.downloader.download(
-                url
+                url,
+                workspace=workspace
             )
 
             document = self.pdf_parser.parse(
