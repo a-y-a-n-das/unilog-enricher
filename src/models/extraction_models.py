@@ -1,5 +1,6 @@
+from pydantic import BaseModel, Field, ConfigDict
+
 class ConflictDetails(BaseModel):
-    row_number: int
 
     manufacturer_part_number: str | None = None
     product_description: str | None = None
@@ -17,7 +18,6 @@ class ConflictDetails(BaseModel):
     recommendation: str
 
 class ExtractedField(BaseModel):
-
     value: str | None = None
     is_conflict: bool = False
     conflict_details: ConflictDetails | None = None
