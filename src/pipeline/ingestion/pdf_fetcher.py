@@ -52,6 +52,7 @@ class Downloader:
             )
 
         output_dir = workspace if workspace is not None else self.download_dir
+        output_path = output_dir / filename
         output_path.write_bytes(response.content)
 
         return output_path
