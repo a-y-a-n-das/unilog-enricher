@@ -62,6 +62,8 @@ Do not treat a product as exact merely because its brand or product family match
 
 ## Authority
 
+Only manufacturer-authoritative sources are permitted for ingestion.
+
 Prefer sources in this order:
 
 1. Official manufacturer product page
@@ -69,11 +71,21 @@ Prefer sources in this order:
 3. Official manufacturer catalogue
 4. Official manufacturer datasheet
 5. Official manufacturer manual
-6. High-quality secondary specification sources
-7. Technical reviews containing useful measurements or technical data
-8. Authorized distributors or other secondary sources
-9. Retailers
-10. User-generated or low-quality sources
+
+The following sources MUST NOT be ingested:
+
+* retailers
+* distributors
+* authorized resellers
+* specification databases
+* review sites
+* forums
+* aggregators
+* comparison sites
+* third-party technical websites
+* retailer-hosted copies of manufacturer documents
+* user-generated content
+* any other source that cannot be established as manufacturer-authoritative
 
 Use the following authority values only:
 
@@ -82,15 +94,47 @@ Use the following authority values only:
 * `secondary`
 * `unknown`
 
-Map retailers, distributors, and authorized resellers to `secondary`.
+Use:
 
-Do not emit `retailer`, `distributor`, or `authorized`.
+* `official` for a manufacturer-owned webpage.
+* `manufacturer_document` for a manufacturer-authored technical document, including a PDF hosted on a document/CDN host when the available evidence establishes that the document is manufacturer-authoritative.
+* `secondary` for non-manufacturer sources.
+* `unknown` when manufacturer authority cannot be established confidently.
 
-A manufacturer-hosted document should generally be considered highly authoritative when it clearly concerns the relevant product.
+A manufacturer document MUST NOT be considered official merely because:
 
-Do not assume a source is official merely because its content looks technical.
+* it contains a manufacturer logo,
+* it mentions the manufacturer,
+* it contains technical specifications,
+* it has the manufacturer name in the title,
+* or it appears to reproduce manufacturer documentation.
 
-Verify the domain and URL when possible.
+For a PDF hosted outside the manufacturer's primary domain, establish manufacturer authority from the available evidence, including:
+
+* clear manufacturer branding and document identity,
+* exact manufacturer product/model/part number,
+* manufacturer-specific product information,
+* document title/type indicating official technical documentation,
+* absence of evidence that the document is a retailer-created or retailer-modified copy.
+
+When the available evidence does not establish manufacturer authority confidently, set:
+
+`should_ingest = false`
+
+## Official Source Priority
+
+When multiple eligible official sources are available, prefer them in this order:
+
+1. Exact-product official product page
+2. Exact-product specification document
+3. Exact-product installation documentation
+4. Exact-product owner's/operation manual
+5. Exact-product technical documentation
+6. Relevant official product-family documentation
+
+This priority determines which official sources should be preferred when several sources provide similar information.
+
+Still return one classification entry for every supplied search result.
 
 ## Source Type
 
@@ -104,35 +148,231 @@ Use `pdf` when the result is a PDF or clearly represents a PDF technical documen
 
 ## Ingestion Decision
 
-Set `should_ingest` to `true` when:
+Set `should_ingest` to `true` ONLY when:
 
-* The source contains meaningful information about the exact product.
-* The source is an authoritative manufacturer page likely to contain useful information about the product.
-* The source is authoritative technical documentation for the relevant product.
-* A high-quality secondary source contains detailed technical information useful for verifying the product.
+* The source is an official manufacturer webpage; OR
+* The source is a manufacturer-authoritative technical document whose provenance is sufficiently established, even when the document is delivered through a document/CDN host; AND
+* The source contains meaningful information about the target product or its relevant manufacturer product family.
 
 Set `should_ingest` to `false` when:
 
-* The result is clearly unrelated.
-* The result concerns a different product or incompatible variant.
+* The source is a retailer.
+* The source is a distributor or reseller.
+* The source is a third-party specification database.
+* The source is a review site.
+* The source is an aggregator or comparison site.
+* The source is a third-party PDF.
+* The source is user-generated content.
+* Official ownership cannot be established confidently.
+* The result is unrelated to the target product.
+* The result concerns an incompatible product or variant.
 * The result contains no useful information for researching the target product.
-* The result is merely a generic category or search page with no meaningful product information.
 
-A related product-family page may be ingested when it provides useful authoritative context, but its notes must clearly indicate that it is not necessarily the exact product.
+A source being technically useful is NOT sufficient for ingestion.
 
-Do not select a source solely because it has a high search-engine relevance score.
+Official manufacturer ownership is mandatory.
+
+## DOCUMENT LANGUAGE AND DUPLICATE DOCUMENT HANDLING
+
+This rule applies not only to initial web search results, but also to
+manufacturer documents and resources discovered from an already-selected
+official manufacturer page or document.
+
+When an official source exposes multiple downloadable resources, evaluate
+those resources using the same document-identity, document-type, language,
+authority, and redundancy rules defined below.
+
+Do not assume that every resource discovered from an official page must be
+ingested.
+
+
+When multiple resources appear to represent the same underlying document
+in different languages, treat them as language variants of one document.
+
+Examples:
+
+    PDSH4816A_EN-pdf.pdf
+    PDSH4816A_FR-pdf.pdf
+    PDSH4816A_ES-pdf.pdf
+
+If the documents are the same underlying document and an English version
+is available:
+
+    select the English version.
+
+Do NOT ingest multiple language versions of the same document merely
+because they have different URLs.
+
+If an English version is NOT available:
+
+    select the best available language version.
+
+Do NOT reject a source merely because it is not English.
+
+The purpose of language preference is to avoid redundant ingestion, not
+to exclude useful evidence.
+
+Language preference order:
+
+    English
+    → preferred
+
+    Other language
+    → acceptable when English is unavailable
+
+    Multiple non-English versions of the same document
+    → select only the best available version unless another language
+      contains materially different product information.
+
+A language variant should be considered the same document only when the
+available evidence indicates that it represents the same underlying
+document, such as:
+
+- same document/model identifier
+- same document title
+- same document type
+- same revision/version
+- same page count or structure
+- language-specific copies of the same manufacturer document
+
+Do NOT treat two documents as duplicates merely because:
+
+- they are both PDFs
+- they have similar filenames
+- they contain the same product number
+- they are both from the manufacturer
+- they are both manuals
+
+Different document types must remain independently selectable.
+
+For example:
+
+    English specification sheet
+    English installation manual
+
+are NOT duplicates and may both be selected.
+
+Likewise:
+
+    English manual
+    French manual
+
+may be duplicates if they are language variants of the same manual.
+
+When uncertain whether two documents are language variants of the same
+underlying document:
+
+    do not assume they are duplicates.
+
+Prefer retaining both over incorrectly discarding distinct evidence.
+
+## DOCUMENT DIVERSITY VS DOCUMENT DUPLICATION
+
+The goal is not to minimize the number of URLs.
+
+The goal is to maximize useful, non-redundant evidence.
+
+Prefer a small set containing different useful document types, for example:
+
+    1 manufacturer product page
+    1 specification sheet
+    1 installation/manual document
+
+over:
+
+    5 copies of the same specification sheet in different languages.
+
+However, do NOT collapse genuinely different documents simply because
+they describe the same product.
+
+Two documents describing the same product are still valuable when they
+provide different evidence.
+
+For example:
+
+    product page
+    specification sheet
+    installation manual
+    warranty document
+
+should remain separate.
+
+The selector must reason about DOCUMENT IDENTITY and DOCUMENT TYPE, not
+only URL, filename, language, or product number.
+
+## DISCOVERED RESOURCE SELECTION
+
+When an already-selected official manufacturer page exposes additional
+documents or resources, treat those discovered resources as candidate
+sources that must be evaluated before ingestion.
+
+For each discovered resource determine:
+
+1. Does it belong to the exact target product?
+2. Is it manufacturer-authoritative?
+3. What document type is it?
+4. What language is it?
+5. Is it a duplicate/language variant of another selected document?
+6. Does it provide materially different evidence?
+7. Should it be ingested?
+
+Do not ingest every linked PDF simply because the parent page is official.
+
+An official parent page does NOT automatically make every linked resource
+necessary to ingest.
+
+Prefer the smallest set of authoritative documents that provides
+non-redundant evidence.
+
+If multiple language versions represent the same underlying document,
+select only the preferred language version.
+
+If multiple documents are genuinely different document types or provide
+materially different evidence, retain them.
+
+When multiple versions of the same document exist, prefer the latest
+applicable revision/version when the revision information is explicitly
+available and the newer version applies to the target product.
+
+Do not assume that a newer-looking filename represents a newer revision.
+
+
+## LANGUAGE SELECTION PRIORITY
+
+Language is a secondary selection criterion.
+
+Use this priority when choosing between documents:
+
+1. Exact target-product applicability
+2. Manufacturer authority
+3. Document identity/type
+4. Material evidence value
+5. Language preference
+
+When two documents are otherwise equivalent language variants of the same
+underlying document:
+
+    English > other available language
+
+If English is unavailable:
+
+    select the best available non-English version.
+
+Never reject an otherwise valid manufacturer document solely because it is
+not English.
 
 ## Important Verification Rules
 
-* Do not assume an identifier belongs to the target product merely because it appears somewhere on the page.
-* The surrounding context must establish the relationship.
-* If a page contains multiple products, do not treat every product mentioned as the target.
-* Do not treat identifiers belonging to other products as identifiers for the target.
-* Do not confuse retailer SKU numbers with manufacturer part numbers.
-* Do not treat retailer specifications as manufacturer-authoritative.
-* Do not infer exact product identity solely from a matching product category.
-* Do not invent product identifiers, specifications, aliases, or relationships.
-* Do not use information outside the supplied product and search result.
+* Manufacturer authority is mandatory for ingestion.
+* Never ingest a third-party source even when it contains useful specifications.
+* Never treat a retailer, distributor, reseller, review site, aggregator, or specification database as manufacturer-authoritative.
+* Do not assume a domain is official merely because the manufacturer name appears in the URL.
+* Do not assume a PDF is official merely because the PDF contains a manufacturer logo or branding.
+* A manufacturer document may be hosted on the official manufacturer domain or on a document/CDN host used to deliver manufacturer-authored documentation.
+* A non-manufacturer-hosted PDF must not be rejected solely because its URL is outside the manufacturer's primary domain.
+* A non-manufacturer-hosted PDF must be accepted only when the supplied search result provides sufficient evidence that the document is manufacturer-authored and manufacturer-authoritative.
+* Do not accept a PDF solely because it contains manufacturer branding, a manufacturer logo, or a matching product number.
+* Reject retailer-created, distributor-created, reseller-created, or otherwise third-party documents even when they reproduce manufacturer specifications.
 
 ## Relevance Classification
 
@@ -173,10 +413,11 @@ Explain the key reason for the classification and ingestion decision.
 
 Examples:
 
-* "Official manufacturer page for the exact 8' x 36' Select Classic horizontal railing kit."
-* "Official manufacturer page for a related 8' x 36' stair variant."
-* "Manufacturer Select railing overview covering the target product family."
-* "Retailer listing for the same product family; useful secondary evidence but not manufacturer-authoritative."
+* "Official manufacturer page for the exact product."
+* "Official manufacturer document for the exact product."
+* "Official manufacturer page for the relevant product family."
+* "Third-party retailer listing; rejected because it is not manufacturer-owned."
+* "Third-party PDF; rejected because it is not hosted by the manufacturer."
 * "Unrelated product variant."
 
 ## Output

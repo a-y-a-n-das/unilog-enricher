@@ -153,7 +153,14 @@ def generate_queries(
         _format_input_record(record),
     )
 
-    content = llm.generate(prompt)
+    content = llm.generate(
+        prompt,
+        max_tokens=1024,
+        temperature=0.1,
+        top_p=0.9,
+        enable_thinking=False,
+        )
+
 
     parsed = _parse_json_response(content)
 
@@ -173,9 +180,14 @@ def generate_queries(
             "Invalid query generation response"
         ) from exc
 
+    if len(result.queries) != 5:
+        raise ValueError(
+            "Query generation returned "
+            f"{len(result.queries)} queries; expected exactly 5"
+        )
+
     return clean_queries(
         result.queries,
         max_queries=max_queries,
     )
-
 

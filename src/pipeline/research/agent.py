@@ -18,6 +18,8 @@ from pipeline.research.search import (
 )
 from pipeline.research.source_selector import select_sources
 
+MAX_OFFICIAL_PDFS = 5
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -193,10 +195,33 @@ class ResearchAgent:
             )
 
         ingestible_sources = [
-            source
-            for source in selected_sources.sources
-            if source.should_ingest
-        ]
+                source
+                for source in selected_sources.sources
+                if source.should_ingest
+                and source.authority in {
+                    "official",
+                    "manufacturer_document",
+                }
+            ]
+
+        official_pdf_count = 0
+        limited_sources = []
+
+        for source in ingestible_sources:
+            if source.source_type == "pdf":
+                if official_pdf_count >= MAX_OFFICIAL_PDFS:
+                    LOGGER.info(
+                        "[Research] Skipping official PDF "
+                        "(5 PDF limit reached): %s",
+                        source.url,
+                    )
+                    continue
+
+                official_pdf_count += 1
+
+            limited_sources.append(source)
+
+        ingestible_sources = limited_sources
 
         LOGGER.info(
             "[Research] Source selector returned %d sources",
@@ -225,9 +250,10 @@ class ResearchAgent:
         # -----------------------------------------------------
         with _Timer("Document collection"):
             documents = self.orchestrator.collect(
-                selected_sources
+            SourceVerificationResult(
+                sources=ingestible_sources
             )
-
+        )
         LOGGER.info(
             "[Research] Collected %d documents",
             len(documents),

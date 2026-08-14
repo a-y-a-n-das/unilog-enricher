@@ -316,6 +316,40 @@ def _normalize_response(
     )
 
 
+def _filter_official_sources(
+    result: SourceVerificationResult,
+) -> SourceVerificationResult:
+    """
+    Keep only sources that the selector classified as
+    official manufacturer sources.
+    """
+
+    official_sources = []
+
+    for source in result.sources:
+        if (
+            source.should_ingest
+            and source.authority in {
+                "official",
+                "manufacturer_document",
+            }
+        ):
+            official_sources.append(source)
+
+        else:
+            LOGGER.info(
+                "Rejected non-official source: %s "
+                "(authority=%s, should_ingest=%s)",
+                source.url,
+                source.authority,
+                source.should_ingest,
+            )
+
+    return SourceVerificationResult(
+        sources=official_sources,
+    )
+
+
 def select_sources(
     record: InputRecord,
     results: list[SearchResult],
@@ -362,7 +396,8 @@ def select_sources(
         )
 
     try:
-        return _normalize_response(parsed)
+        result = _normalize_response(parsed)
+        return _filter_official_sources(result)
 
     except Exception as exc:
         LOGGER.warning(
