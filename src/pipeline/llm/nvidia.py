@@ -1,3 +1,5 @@
+import logging
+
 from openai import OpenAI
 
 from pipeline.llm.config import (
@@ -5,6 +7,8 @@ from pipeline.llm.config import (
     get_llm_base_url,
     get_llm_model,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class NVIDIAClient:
@@ -61,19 +65,15 @@ class NVIDIAClient:
                 "chat_template_kwargs": {
                 "enable_thinking": enable_thinking,
             }
-        }
+            }
         )
 
         choice = response.choices[0]
 
-        print()
-        print("=" * 80)
-        print("LLM RESPONSE DEBUG")
-        print("=" * 80)
-        print("finish_reason:", choice.finish_reason)
-        print("content:", repr(choice.message.content))
-        print("reasoning:", repr(choice.message.reasoning_content))
-        print("usage:", response.usage)
-        print("=" * 80)
+        logger.debug(
+            "LLM response: finish_reason=%s usage=%s",
+            choice.finish_reason,
+            response.usage,
+        )
 
         return response.choices[0].message.content or ""

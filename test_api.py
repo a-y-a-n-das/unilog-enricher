@@ -256,5 +256,174 @@ def test_upload_1000_rows(mock_dependencies):
     print(f"1000-row test passed: job_id={job_id}")
 
 
+def test_env_example_exists():
+    """Test that .env.example exists and contains no real secrets."""
+    from pathlib import Path
+    env_example = Path(".env.example")
+    assert env_example.exists(), ".env.example should exist"
+    
+    content = env_example.read_text()
+    assert "NVIDIA_API_KEY=" in content
+    assert "FIRECRAWL_API_KEY=" in content
+    assert "TAVILY_API_KEY=" in content
+    assert "DATABASE_URL=" in content
+    assert "LLM_PROVIDER=" in content
+    assert "LLM_MODEL=" in content
+    
+    # Verify no real secrets (no actual API key values)
+    lines = content.strip().split('\n')
+    for line in lines:
+        if '=' in line:
+            key, value = line.split('=', 1)
+            # Values should be empty or placeholders only
+            assert value == "" or value.startswith("nvidia/") or value == "nvidia", \
+                f"Unexpected value for {key}: {value}"
+
+
+def test_upload_size_limit(mock_dependencies):
+    """Test that oversized uploads are rejected with HTTP 413."""
+    # Create content larger than 50MB
+    large_content = b"x" * (51 * 1024 * 1024)  # 51 MB
+    files = {"file": ("large.csv", io.BytesIO(large_content), "text/csv")}
+    
+    # TestClient doesn't trigger middleware by default, so we test the middleware directly
+    # by making a request with a Content-Length header
+    from starlette.testclient import TestClient
+    from api.app import app
+    
+    test_client = TestClient(app, raise_server_exceptions=False)
+    
+    # Test with Content-Length header indicating oversized upload
+    headers = {"Content-Length": str(51 * 1024 * 1024)}
+    files = {"file": ("large.csv", io.BytesIO(b"small content"), "text/csv")}
+    
+    # We need to test the middleware directly
+    import httpx
+    transport = httpx.ASGITransport(app=app)
+    async_client = httpx.AsyncClient(transport=transport, base_url="http://test")
+    
+    import asyncio
+    
+    async def test_oversized():
+        response = await async_client.post(
+            "/api/jobs",
+            files={"file": ("large.csv", io.BytesIO(b"x" * 100), "text/csv")},
+            headers={"Content-Length": str(51 * 1024 * 1024)}
+        )
+        return response
+    
+    response = asyncio.run(test_oversized())
+    assert response.status_code == 413
+    assert "too large" in response.json()["detail"].lower()
+
+
+def test_cors_configuration():
+    """Test that CORS no longer allows credentials with wildcard origins."""
+    from api.app import app
+    from fastapi.middleware.cors import CORSMiddleware
+    
+    # Find the CORS middleware
+    cors_middleware = None
+    for middleware in app.user_middleware:
+        if middleware.cls == CORSMiddleware:
+            cors_middleware = middleware
+            break
+    
+    assert cors_middleware is not None, "CORS middleware should be configured"
+    
+    # Check options - they're stored in middleware.kwargs
+    options = cors_middleware.kwargs
+    assert options.get("allow_credentials") is False, \
+        "allow_credentials should be False when allow_origins is ['*']"
+    assert options.get("allow_origins") == ["*"], \
+        "allow_origins should be ['*'] for v1"
+
+
+def test_nvidia_client_no_debug_output(mock_dependencies):
+    """Test that NVIDIA client no longer prints debug output unconditionally."""
+    from pipeline.llm.nvidia import NVIDIAClient
+    import inspect
+    
+    # Check that generate method doesn't have print statements for content/reasoning
+    source = inspect.getsource(NVIDIAClient.generate)
+    
+    # Should not contain print of content or reasoning
+    assert "print(" not in source or "LLM RESPONSE DEBUG" not in source, \
+        "NVIDIAClient.generate should not have debug print statements"
+    
+    # Should not contain content or reasoning logging
+    assert "choice.message.content" not in source, \
+        "Should not log full response content"
+    assert "choice.message.reasoning_content" not in source, \
+        "Should not log reasoning content"
+    
+    # Should still have max_retries=5
+    source_init = inspect.getsource(NVIDIAClient.__init__)
+    assert "max_retries=5" in source_init, \
+        "max_retries should remain 5"
+
+
+def test_download_filename_deterministic(mock_dependencies):
+    """Test that download filename is deterministic and safe."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.output_generator import generate_output
+    from unittest.mock import MagicMock
+    from pipeline.ingestion.web_scraper import WebScraper
+    
+    # Create a test job
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Test Product"})
+    ]
+    job = create_job(
+        input_filename="test.csv",
+        input_format="csv",
+        input_file_path="/tmp/test.csv",
+        rows=records,
+    )
+    
+    # Mock worker and generate output
+    from services.processing_service import ProcessingService, ProcessingResult, ProcessingTimings
+    mock_result = ProcessingResult(
+        record=records[0],
+        product={"name": "Test"},
+        timings=ProcessingTimings(research_seconds=1.0, evidence_seconds=0.5, extraction_seconds=0.3, total_seconds=1.8)
+    )
+    mock_ps = MagicMock(spec=ProcessingService)
+    mock_ps.process.return_value = mock_result
+    
+    from services.worker import Worker
+    worker = Worker(mock_ps)
+    worker.run_job(str(job.id))
+    
+    # Test download endpoint
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+    
+    response = client.get(f"/api/jobs/{job.id}/download")
+    assert response.status_code == 200
+    
+    # Check Content-Disposition header
+    content_disposition = response.headers.get("content-disposition", "")
+    assert "attachment; filename=" in content_disposition
+    
+    # Extract filename
+    import re
+    match = re.search(r'filename="([^"]+)"', content_disposition)
+    assert match, "Filename should be in Content-Disposition header"
+    filename = match.group(1)
+    
+    # Filename should follow pattern: enriched_<8-char-job-id>.<ext>
+    short_job_id = str(job.id)[:8]
+    expected_pattern = f"enriched_{short_job_id}.csv"
+    assert filename == expected_pattern, f"Expected {expected_pattern}, got {filename}"
+    
+    # Verify no user-provided filename parts in download name
+    assert "test" not in filename.lower(), "Should not contain original filename"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

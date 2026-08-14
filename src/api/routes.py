@@ -174,10 +174,9 @@ async def download_job_output(job_id: str) -> FileResponse:
     if safe_path is None:
         raise HTTPException(status_code=404, detail="Output file not found")
 
-    base = Path(job.input_filename).stem
-    base = "".join(c for c in base if c.isalnum() or c in "._- ")
+    short_job_id = str(job.id)[:8]
     ext = ".xlsx" if job.input_format == "xlsx" else ".csv"
-    download_name = f"{base}_enriched{ext}"
+    download_name = f"enriched_{short_job_id}{ext}"
 
     return FileResponse(
         path=safe_path,
