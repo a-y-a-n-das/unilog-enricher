@@ -3,7 +3,7 @@ from typing import Any
 
 import openpyxl
 
-from models.input import InputRecord
+from models.input_models import InputRecord
 
 
 REQUIRED_SHEET = "Input"
@@ -42,6 +42,12 @@ def load_input_xlsx(path: str | Path) -> list[InputRecord]:
 
     if any(not header for header in headers):
         raise ValueError("Input sheet contains an empty column header")
+
+    seen_headers: set[str] = set()
+    for header in headers:
+        if header in seen_headers:
+            raise ValueError(f"Duplicate column header: {header}")
+        seen_headers.add(header)
 
     records: list[InputRecord] = []
 

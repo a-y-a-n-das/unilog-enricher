@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from models.input import InputRecord
+from models.input_models import InputRecord
 
 
 def load_input_csv(path: str | Path) -> list[InputRecord]:
@@ -26,6 +26,12 @@ def load_input_csv(path: str | Path) -> list[InputRecord]:
 
         if any(not header for header in headers):
             raise ValueError("Input file contains an empty column header")
+
+        seen_headers: set[str] = set()
+        for header in headers:
+            if header in seen_headers:
+                raise ValueError(f"Duplicate column header: {header}")
+            seen_headers.add(header)
 
         records: list[InputRecord] = []
 
