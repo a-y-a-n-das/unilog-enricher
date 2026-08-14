@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Project data (will be created at runtime)
+data/
+
+# Generated files
+*.log
+*.tmp
+*.out
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Test files
+test_api.py
+src/test.py
+src/test2.py
+src/*_run.txt
+
+# Build artifacts
+build/
+dist/
+wheels/
+*.egg-info
+
+# Lock file is needed for build
+!uv.lock
