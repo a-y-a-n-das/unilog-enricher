@@ -16,7 +16,11 @@ class Downloader:
             exist_ok=True,
         )
 
-    def download(self, url: str) -> Path:
+    def download(
+        self,
+        url: str,
+        workspace: str | Path | None = None,
+    ) -> Path:
         response = requests.get(
             url,
             timeout=30,
@@ -47,7 +51,7 @@ class Downloader:
                 ".pdf"
             )
 
-        output_path = self.download_dir / filename
+        output_dir = workspace if workspace is not None else self.download_dir
         output_path.write_bytes(response.content)
 
         return output_path
