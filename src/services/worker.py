@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from api.output_generator import generate_output
 from database import repositories
 from database.models import Job
 from models.input_models import InputRecord
@@ -72,6 +73,9 @@ class Worker:
                 session.add(final_job)
                 session.commit()
             logger.info("[JOB %s] Job completed", job_id)
+
+            generate_output(job_id)
+            logger.info("[JOB %s] Output generated", job_id)
         else:
             logger.info("[JOB %s] Worker finished (pending rows remain)", job_id)
 
