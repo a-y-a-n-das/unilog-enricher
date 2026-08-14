@@ -56,6 +56,46 @@ def create_job_rows(job_id: uuid.UUID, rows_data: list[dict]) -> list[JobRow]:
         return job_rows
 
 
+def create_job_with_rows(
+    input_filename: str,
+    input_format: str,
+    total_rows: int,
+    input_file_path: str,
+    rows_data: list[dict],
+) -> Job:
+    with SessionLocal() as session:
+        job = Job(
+            input_filename=input_filename,
+            input_format=input_format,
+            total_rows=total_rows,
+            input_file_path=input_file_path,
+            status="queued",
+            processed_rows=0,
+            successful_rows=0,
+            failed_rows=0,
+        )
+        session.add(job)
+        session.flush()
+
+        job_rows = [
+            JobRow(
+                job_id=job.id,
+                row_number=row["row_number"],
+                input_data=row["input_data"],
+                status="pending",
+                attempts=0,
+            )
+            for row in rows_data
+        ]
+        session.add_all(job_rows)
+
+        session.commit()
+        session.refresh(job)
+        for row in job_rows:
+            session.refresh(row)
+        return job
+
+
 def get_job(job_id: uuid.UUID) -> Job | None:
     with SessionLocal() as session:
         return session.get(Job, job_id)
