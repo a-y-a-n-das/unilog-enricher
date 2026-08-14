@@ -36,6 +36,7 @@ def assess_pdf_text_quality(
         (use_fast_path, metrics)
     """
 
+    doc = None
     try:
         doc = pymupdf.open(pdf_path)
     except Exception as exc:
@@ -179,7 +180,8 @@ def assess_pdf_text_quality(
         return use_fast_path, metrics
 
     finally:
-        doc.close()
+        if doc is not None:
+            doc.close()
 
 
 class PDFParser:
