@@ -21,7 +21,7 @@ class NVIDIAClient:
         self.client = OpenAI(
             base_url=get_llm_base_url(),
             api_key=api_key,
-            max_retries=10,
+            max_retries=5,
         )
 
     def generate(
