@@ -21,6 +21,7 @@ class NVIDIAClient:
         self.client = OpenAI(
             base_url=get_llm_base_url(),
             api_key=api_key,
+            max_retries=10,
         )
 
     def generate(
@@ -28,6 +29,10 @@ class NVIDIAClient:
         prompt: str,
         *,
         system_prompt: str | None = None,
+        max_tokens: int = 16384,
+        temperature: float = 1.0,
+        top_p: float = 0.95,
+        enable_thinking: bool = True,
     ) -> str:
         messages = []
 
@@ -49,9 +54,26 @@ class NVIDIAClient:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            temperature=1.0,
-            top_p=0.95,
-            max_tokens=16384,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            extra_body={
+                "chat_template_kwargs": {
+                "enable_thinking": enable_thinking,
+            }
+        }
         )
+
+        choice = response.choices[0]
+
+        print()
+        print("=" * 80)
+        print("LLM RESPONSE DEBUG")
+        print("=" * 80)
+        print("finish_reason:", choice.finish_reason)
+        print("content:", repr(choice.message.content))
+        print("reasoning:", repr(choice.message.reasoning_content))
+        print("usage:", response.usage)
+        print("=" * 80)
 
         return response.choices[0].message.content or ""
