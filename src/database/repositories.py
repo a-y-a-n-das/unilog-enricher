@@ -91,8 +91,6 @@ def create_job_with_rows(
 
         session.commit()
         session.refresh(job)
-        for row in job_rows:
-            session.refresh(row)
         return job
 
 
