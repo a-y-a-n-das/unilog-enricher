@@ -7,6 +7,7 @@ from pipeline.ingestion.pdf_fetcher import Downloader
 from pipeline.ingestion.pdf_parser import PDFParser
 from pipeline.ingestion.web_scraper import WebScraper
 from pipeline.ingestion.resource_resolver import ResourceResolver
+from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class ResearchOrchestrator:
         self,
         url: str,
         source_url: str,
+        workspace: Path | None = None,
     ) -> Document:
         """
         Download and parse a PDF URL.
@@ -92,7 +94,10 @@ class ResearchOrchestrator:
             url,
         )
 
-        pdf_path = self.downloader.download(url)
+        pdf_path = self.downloader.download(
+            url,
+            workspace=workspace
+        )
 
         LOGGER.info(
             "[Orchestrator] Parsing PDF: %s",
@@ -118,6 +123,7 @@ class ResearchOrchestrator:
         url: str,
         documents: list[Document],
         seen_urls: set[str],
+        workspace: Path | None = None,
     ) -> None:
         """
         Scrape one webpage.
@@ -175,11 +181,12 @@ class ResearchOrchestrator:
         # ---------------------------------------------------------
         resolver_seen_urls = set(seen_urls)
 
-        pdf_documents = (
+        pdf_documents, attempted_pdf_urls = (
             self.resource_resolver.resolve_pdf_links(
                 links=page.links,
                 source_url=url,
-                seen_urls=resolver_seen_urls
+                seen_urls=resolver_seen_urls,
+                workspace=workspace,
             )
         )
 
@@ -188,6 +195,31 @@ class ResearchOrchestrator:
             len(pdf_documents),
         )
 
+        # Filter failed PDF URLs from the webpage's links so they
+        # don't reach the extractor as apparent resources.
+        if attempted_pdf_urls:
+            successful_pdf_urls = {
+                doc.metadata.get("url") for doc in pdf_documents if doc.metadata.get("url")
+            }
+            failed_pdf_urls = attempted_pdf_urls - successful_pdf_urls
+            if failed_pdf_urls:
+                page.links = [
+                    link for link in page.links
+                    if self._normalize_url(link) not in failed_pdf_urls
+                ]
+                # Also remove failed PDF URLs from the webpage content (markdown)
+                # so they don't appear in the evidence passed to extraction.
+                for failed_url in failed_pdf_urls:
+                    page.content = page.content.replace(failed_url, "")
+                # Update the webpage document already added to documents list
+                for i, doc in enumerate(documents):
+                    if doc.metadata.get("url") == url:
+                        documents[i] = page.model_copy(update={"links": page.links, "content": page.content})
+                        break
+                LOGGER.info(
+                    "[Orchestrator] Filtered %d failed PDF URLs from webpage links and content",
+                    len(failed_pdf_urls),
+                )
 
         for pdf_document in pdf_documents:
             self._add_document(
@@ -199,6 +231,7 @@ class ResearchOrchestrator:
     def collect(
         self,
         sources: SourceVerificationResult,
+        workspace: Path | None = None,
     ) -> list[Document]:
         """
         Collect Documents from selected sources.
@@ -251,6 +284,7 @@ class ResearchOrchestrator:
                     document = self._parse_pdf(
                         url=url,
                         source_url=url,
+                        workspace=workspace
                     )
 
                     self._add_document(
@@ -267,6 +301,7 @@ class ResearchOrchestrator:
                         url=url,
                         documents=documents,
                         seen_urls=seen_urls,
+                        workspace=workspace
                     )
 
             except Exception:

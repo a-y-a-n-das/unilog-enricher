@@ -17,6 +17,7 @@ from pipeline.research.search import (
     deduplicate_results,
 )
 from pipeline.research.source_selector import select_sources
+from pathlib import Path
 
 MAX_OFFICIAL_PDFS = 5
 
@@ -92,6 +93,7 @@ class ResearchAgent:
         self,
         record: InputRecord,
         max_queries: int | None = None,
+        workspace: Path | None = None,
     ) -> list[Document]:
         """
         Run the complete first-pass research pipeline.
@@ -252,11 +254,13 @@ class ResearchAgent:
             documents = self.orchestrator.collect(
             SourceVerificationResult(
                 sources=ingestible_sources
-            )
+            ),
+            workspace=workspace,
         )
         LOGGER.info(
             "[Research] Collected %d documents",
             len(documents),
+
         )
 
         return documents
