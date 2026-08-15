@@ -10,6 +10,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     TypeDecorator,
+    CheckConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
@@ -57,10 +58,21 @@ class UUIDType(TypeDecorator):
 class Job(Base):
     __tablename__ = "jobs"
 
+    __table_args__ = (
+        CheckConstraint("job_type IN ('production', 'test')", name="ck_job_type"),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUIDType(),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    job_type: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="production",
+        server_default="production",
     )
 
     status: Mapped[str] = mapped_column(

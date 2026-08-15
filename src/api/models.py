@@ -26,6 +26,7 @@ class JobStatusResponse(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     output_available: bool = False
+    job_type: str = "production"
 
 
 class JobRowResponse(BaseModel):
@@ -58,6 +59,7 @@ def make_job_status_response(job) -> JobStatusResponse:
         started_at=job.started_at,
         completed_at=job.completed_at,
         output_available=job.output_file_path is not None,
+        job_type=job.job_type,
     )
 
 
