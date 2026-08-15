@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import perf_counter
+from typing import Callable, TypeVar
 
 from models.input_models import InputRecord
 from pipeline.extraction.evidence import EvidenceBuilder
@@ -14,6 +15,8 @@ from pipeline.research.agent import ResearchAgent
 
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -39,18 +42,8 @@ class ProcessingService:
     """
     Orchestrates the complete processing lifecycle for one InputRecord.
 
-    Responsibilities:
-        - initialize shared pipeline dependencies
-        - create an isolated temporary workspace for the record
-        - run research
-        - build evidence
-        - run extraction
-        - return the final result
-        - guarantee temporary workspace cleanup
-
-    This class intentionally does NOT contain the research or extraction
-    business logic. Those responsibilities remain inside the existing
-    pipeline components.
+    Each recoverable pipeline stage can be retried independently.
+    A failed stage does not cause previously completed stages to rerun.
     """
 
     def __init__(
@@ -58,9 +51,11 @@ class ProcessingService:
         *,
         max_queries: int = 5,
         temp_root: Path | None = None,
+        stage_retries: int = 3,
     ) -> None:
         self.max_queries = max_queries
         self.temp_root = temp_root
+        self.stage_retries = stage_retries
 
         logger.info("Initializing processing service")
 
@@ -90,18 +85,7 @@ class ProcessingService:
         self,
         record: InputRecord,
     ) -> ProcessingResult:
-        """
-        Process exactly one InputRecord.
-
-        A dedicated temporary workspace is created for this record and
-        guaranteed to be removed when processing finishes, regardless of
-        success or failure.
-
-        Raises:
-            Exception: Any exception from the underlying pipeline is allowed
-                to propagate to the caller. The workspace cleanup still
-                occurs because it is handled by the context manager.
-        """
+        """Process exactly one InputRecord."""
 
         total_start = perf_counter()
 
@@ -146,6 +130,64 @@ class ProcessingService:
                 )
                 raise
 
+    def _run_stage(
+        self,
+        *,
+        stage_name: str,
+        operation: Callable[[], T],
+        retries: int | None = None,
+    ) -> T:
+        """
+        Execute one pipeline stage with independent retries.
+
+        Only the failing stage is repeated. Previously completed stages
+        remain untouched.
+        """
+
+        max_attempts = retries or self.stage_retries
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.info(
+                    "%s attempt %d/%d",
+                    stage_name,
+                    attempt,
+                    max_attempts,
+                )
+
+                result = operation()
+
+                logger.info(
+                    "%s succeeded on attempt %d/%d",
+                    stage_name,
+                    attempt,
+                    max_attempts,
+                )
+
+                return result
+
+            except Exception as exc:
+                last_error = exc
+
+                logger.warning(
+                    "%s failed on attempt %d/%d: %s",
+                    stage_name,
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+
+                if attempt < max_attempts:
+                    logger.info(
+                        "%s will be retried",
+                        stage_name,
+                    )
+
+        raise RuntimeError(
+            f"{stage_name} failed after {max_attempts} attempts"
+        ) from last_error
+
     def _process_record(
         self,
         *,
@@ -153,9 +195,6 @@ class ProcessingService:
         workspace: Path,
         total_start: float,
     ) -> ProcessingResult:
-        """
-        Execute the actual single-record pipeline.
-        """
 
         # ---------------------------------------------------------
         # Research
@@ -168,10 +207,13 @@ class ProcessingService:
 
         start = perf_counter()
 
-        documents = self.research_agent.run(
-            record,
-            max_queries=self.max_queries,
-            workspace=workspace,
+        documents = self._run_stage(
+            stage_name=f"[ROW {record.row_number}] Research",
+            operation=lambda: self.research_agent.run(
+                record,
+                max_queries=self.max_queries,
+                workspace=workspace,
+            ),
         )
 
         research_seconds = perf_counter() - start
@@ -225,9 +267,12 @@ class ProcessingService:
 
         start = perf_counter()
 
-        extracted_product = self.extractor.extract(
-            record=record,
-            documents=documents,
+        extracted_product = self._run_stage(
+            stage_name=f"[ROW {record.row_number}] Extraction",
+            operation=lambda: self.extractor.extract(
+                record=record,
+                documents=documents,
+            ),
         )
 
         extraction_seconds = perf_counter() - start
@@ -256,4 +301,3 @@ class ProcessingService:
             product=extracted_product,
             timings=timings,
         )
-
