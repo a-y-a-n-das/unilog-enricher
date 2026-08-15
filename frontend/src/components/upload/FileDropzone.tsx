@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, DragEvent, ChangeEvent } from 'react';
 import { cn } from '../../lib/utils';
-import { X, CheckCircle, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, FileSpreadsheet, FileText } from 'lucide-react';
 import { formatFileSize } from '../../lib/utils';
 import * as XLSX from 'xlsx';
 
@@ -16,7 +16,7 @@ export interface FileDropzoneProps {
 
 export function FileDropzone({
   onFileSelect,
-  acceptedTypes = ['.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  acceptedTypes = ['.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.csv', 'text/csv', 'application/csv'],
   maxSize = 10 * 1024 * 1024,
   disabled = false,
   className,
@@ -25,6 +25,11 @@ export function FileDropzone({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isXlsxFile = (file: File): boolean => {
+    return file.name.toLowerCase().endsWith('.xlsx') || 
+           file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  };
 
   const validateFile = useCallback(async (file: File): Promise<string | null> => {
     const isValidType = acceptedTypes.some((type) => {
@@ -35,22 +40,24 @@ export function FileDropzone({
     });
 
     if (!isValidType) {
-      return 'Please select an Excel workbook (.xlsx)';
+      return 'Please select an Excel workbook (.xlsx) or CSV file (.csv)';
     }
 
     if (file.size > maxSize) {
       return `File size must be less than ${formatFileSize(maxSize)}`;
     }
 
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    if (isXlsxFile(file)) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
-      if (!workbook.SheetNames.includes(REQUIRED_SHEET)) {
-        return `The Excel workbook must contain a sheet named "${REQUIRED_SHEET}".`;
+        if (!workbook.SheetNames.includes(REQUIRED_SHEET)) {
+          return `The Excel workbook must contain a sheet named "${REQUIRED_SHEET}".`;
+        }
+      } catch {
+        return 'Failed to parse the Excel workbook. Please ensure it is a valid .xlsx file.';
       }
-    } catch {
-      return 'Failed to parse the Excel workbook. Please ensure it is a valid .xlsx file.';
     }
 
     return null;
@@ -126,6 +133,8 @@ export function FileDropzone({
     handleFileSelect(null);
   }, [handleFileSelect]);
 
+  const isSelectedXlsx = selectedFile && isXlsxFile(selectedFile);
+
   return (
     <div className="relative">
       <input
@@ -135,7 +144,7 @@ export function FileDropzone({
         onChange={handleInputChange}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         disabled={disabled}
-        aria-label="Upload Excel workbook"
+        aria-label="Upload Excel workbook or CSV file"
       />
 
       <div
@@ -185,11 +194,15 @@ export function FileDropzone({
         ) : (
           <>
             <div className="p-3 bg-unilog-bg rounded-lg border border-unilog-border mb-4">
-              <FileSpreadsheet className="h-10 w-10 text-unilog-textMuted mx-auto" />
+              {isSelectedXlsx ? (
+                <FileSpreadsheet className="h-10 w-10 text-unilog-textMuted mx-auto" />
+              ) : (
+                <FileText className="h-10 w-10 text-unilog-textMuted mx-auto" />
+              )}
             </div>
-            <p className="text-h3 text-unilog-text mb-1">Drop Excel workbook here</p>
+            <p className="text-h3 text-unilog-text mb-1">Drop Excel workbook or CSV file here</p>
             <p className="text-body-sm text-unilog-textMuted mb-4">or browse files</p>
-            <p className="text-caption text-unilog-textMuted">.xlsx files supported</p>
+            <p className="text-caption text-unilog-textMuted">.xlsx and .csv files supported</p>
           </>
         )}
       </div>

@@ -39,21 +39,23 @@ export function NewJob() {
     if (file) setError(null);
   };
 
+  const isXlsx = selectedFile?.name.toLowerCase().endsWith('.xlsx');
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-display text-unilog-text">New Enrichment Job</h1>
         <p className="mt-2 text-body text-unilog-textMuted">
-          Upload your Excel workbook to start the enrichment pipeline.
+          Upload your Excel workbook or CSV file to start the enrichment pipeline.
         </p>
       </div>
 
       <Card variant="elevated">
         <CardHeader>
-          <CardTitle>Upload Excel Workbook</CardTitle>
+          <CardTitle>Upload Excel Workbook or CSV</CardTitle>
           <CardDescription>
             Drag and drop or click to browse. Maximum file size: 10MB.
-            The workbook must contain a sheet named Input.
+            {isXlsx && ' Excel workbooks must contain a sheet named "Input".'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -94,22 +96,34 @@ export function NewJob() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Workbook Requirements</CardTitle>
+          <CardTitle>File Requirements</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <ul className="space-y-2 text-body-sm text-unilog-textMuted">
             <li className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>Must be a valid Excel workbook (.xlsx extension)</span>
+              <span>Excel workbook (.xlsx) or CSV (.csv)</span>
             </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>Must contain a sheet named exactly Input (case-sensitive)</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>First row of the Input sheet should contain column headers</span>
-            </li>
+            {isXlsx && (
+              <>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
+                  {/* eslint-disable-next-line react/no-unescaped-entities */}
+                  <span>Must contain a sheet named exactly "Input" (case-sensitive)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
+                  {/* eslint-disable-next-line react/no-unescaped-entities */}
+                  <span>First row of the "Input" sheet should contain column headers</span>
+                </li>
+              </>
+            )}
+            {selectedFile && selectedFile.name.toLowerCase().endsWith('.csv') && (
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
+                <span>First row should contain column headers</span>
+              </li>
+            )}
             <li className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
               <span>Maximum 10MB file size</span>
