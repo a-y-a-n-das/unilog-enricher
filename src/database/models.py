@@ -12,7 +12,8 @@ from sqlalchemy import (
     TypeDecorator,
     CheckConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
