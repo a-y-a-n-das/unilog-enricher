@@ -1,5 +1,9 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
+import { Dashboard } from "./pages/Dashboard";
+import { NewJob } from "./pages/NewJob";
+import { JobsPage } from "./pages/Jobs";
+import { JobDetails } from "./pages/JobDetails";
 
 export function App() {
   return (
@@ -10,6 +14,7 @@ export function App() {
           <Route path="new" element={<NewJob />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="jobs/:jobId" element={<JobDetails />} />
+
         </Route>
       </Routes>
     </BrowserRouter>
