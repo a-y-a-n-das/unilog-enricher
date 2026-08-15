@@ -253,20 +253,25 @@ export function JobDetails() {
                 className="w-full"
                 size="lg"
                 onClick={handleDownload}
-                disabled={!job.output_available || downloading}
+                disabled={job.processed_rows === 0 || downloading}
                 loading={downloading}
               >
                 <Download className="h-5 w-5" />
-                {downloading ? 'Preparing…' : job.output_available ? 'Download Enriched Excel' : 'Output Not Ready'}
+                {downloading ? 'Preparing…' : job.processed_rows > 0 ? 'Download Current Results' : 'Output Not Ready'}
               </Button>
               {job.output_available && (
                 <p className="text-caption text-unilog-textMuted text-center">
                   Enriched file includes all original columns plus validated enrichment data
                 </p>
               )}
-              {!job.output_available && !isComplete && (
+              {job.processed_rows > 0 && !job.output_available && !isComplete && (
                 <p className="text-caption text-unilog-textMuted text-center">
-                  Download available when enrichment completes
+                  Partial download available while job is processing
+                </p>
+              )}
+              {!job.output_available && job.processed_rows === 0 && !isComplete && (
+                <p className="text-caption text-unilog-textMuted text-center">
+                  Download available when at least one row is processed
                 </p>
               )}
               {isComplete && job.failed_rows > 0 && job.failed_rows === job.total_rows && (
