@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
-from api.output_generator import generate_output
 from database import repositories
 from database.models import Job
 from models.input_models import InputRecord
+from pipeline.llm.config import get_worker_concurrency
 from services.processing_service import ProcessingResult, ProcessingService
 
 if TYPE_CHECKING:
@@ -17,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 class Worker:
     """
-    Sequential worker that processes all pending rows for a single job.
+    Worker that processes all pending rows for a single job.
 
-    The worker bridges JobRow persistence with ProcessingService.
+    Uses a fixed thread pool (WORKER_CONCURRENCY) where each thread
+    repeatedly claims and processes rows until none remain.
     """
 
     def __init__(
@@ -32,8 +34,8 @@ class Worker:
         """
         Process all pending rows for the given job.
 
-        Transitions the job from queued to processing, processes each row,
-        and completes the job when all rows reach terminal states.
+        Transitions the job from queued to processing, processes each row
+        using a thread pool, and completes the job when all rows reach terminal states.
         """
         job = repositories.get_job(job_id)
         if job is None:
@@ -58,12 +60,11 @@ class Worker:
 
         logger.info("[JOB %s] Worker started", job_id)
 
-        while True:
-            row = repositories.claim_next_pending_row(job_id)
-            if row is None:
-                break
-
-            self._process_row(job_id, row)
+        concurrency = get_worker_concurrency()
+        if concurrency == 1:
+            self._run_sequential(job_id)
+        else:
+            self._run_concurrent(job_id, concurrency)
 
         final_job = repositories.update_job_progress(job_id)
         if final_job and final_job.processed_rows == final_job.total_rows:
@@ -74,10 +75,35 @@ class Worker:
                 session.commit()
             logger.info("[JOB %s] Job completed", job_id)
 
+            from api.output_generator import generate_output
             generate_output(job_id)
             logger.info("[JOB %s] Output generated", job_id)
         else:
             logger.info("[JOB %s] Worker finished (pending rows remain)", job_id)
+
+    def _run_sequential(self, job_id: str) -> None:
+        """Sequential processing (WORKER_CONCURRENCY=1)."""
+        while True:
+            row = repositories.claim_next_pending_row(job_id)
+            if row is None:
+                break
+            self._process_row(job_id, row)
+
+    def _run_concurrent(self, job_id: str, concurrency: int) -> None:
+        """Concurrent processing using a fixed thread pool."""
+        logger.info("[JOB %s] Starting %d concurrent workers", job_id, concurrency)
+
+        def worker_loop() -> None:
+            while True:
+                row = repositories.claim_next_pending_row(job_id)
+                if row is None:
+                    break
+                self._process_row(job_id, row)
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [executor.submit(worker_loop) for _ in range(concurrency)]
+            for future in futures:
+                future.result()
 
     def _process_row(self, job_id: str, row: "JobRow") -> None:
         """

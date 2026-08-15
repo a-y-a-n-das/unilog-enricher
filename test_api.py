@@ -277,7 +277,8 @@ def test_env_example_exists():
             key, value = line.split('=', 1)
             # Values should be empty or placeholders only
             # CORS_ORIGINS is allowed to have placeholder URLs
-            assert value == "" or value.startswith("nvidia/") or value == "nvidia" or key == "CORS_ORIGINS", \
+            # WORKER_CONCURRENCY is allowed to have numeric values
+            assert value == "" or value.startswith("nvidia/") or value == "nvidia" or key == "CORS_ORIGINS" or key == "WORKER_CONCURRENCY", \
                 f"Unexpected value for {key}: {value}"
 
 
