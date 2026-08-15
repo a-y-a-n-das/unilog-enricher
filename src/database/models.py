@@ -9,18 +9,56 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    TypeDecorator,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from database.connection import Base
+
+
+class JSONType(TypeDecorator):
+    """Dialect-aware JSON type: JSONB on PostgreSQL, JSON on SQLite."""
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB())
+        return dialect.type_descriptor(SQLiteJSON())
+
+
+class UUIDType(TypeDecorator):
+    """Dialect-aware UUID type: UUID on PostgreSQL, String on SQLite."""
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(PG_UUID(as_uuid=True))
+        return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if dialect.name == "postgresql":
+            return value
+        return uuid.UUID(value)
 
 
 class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUIDType(),
         primary_key=True,
         default=uuid.uuid4,
     )
@@ -114,13 +152,13 @@ class JobRow(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUIDType(),
         primary_key=True,
         default=uuid.uuid4,
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        UUIDType(),
         ForeignKey("jobs.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -137,12 +175,12 @@ class JobRow(Base):
     )
 
     input_data: Mapped[dict] = mapped_column(
-        JSONB,
+        JSONType(),
         nullable=False,
     )
 
     result_data: Mapped[dict | None] = mapped_column(
-        JSONB,
+        JSONType(),
         nullable=True,
     )
 
