@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -18,6 +19,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+def get_cors_origins() -> list[str]:
+    """Parse CORS_ORIGINS environment variable into a list of origins."""
+    raw = os.getenv("CORS_ORIGINS", "")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
@@ -52,9 +58,13 @@ app = FastAPI(
 )
 
 app.add_middleware(UploadSizeLimitMiddleware)
+cors_origins = get_cors_origins()
+if not cors_origins:
+    logger.warning("CORS_ORIGINS not set or empty. CORS will be disabled for security.")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
