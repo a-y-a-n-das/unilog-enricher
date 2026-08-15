@@ -16,7 +16,7 @@ export function Dashboard() {
         <div>
           <h1 className="text-display text-unilog-text">Product Data Enrichment</h1>
           <p className="mt-2 text-body text-unilog-textMuted max-w-2xl">
-            Research, enrich and validate product information from CSV files.
+            Research, enrich and validate product information from Excel workbooks.
           </p>
         </div>
 
@@ -34,9 +34,9 @@ export function Dashboard() {
               <div className="p-3 bg-unilog-accentSoft text-unilog-accent rounded-lg w-fit mb-4">
                 <FileText className="h-6 w-6" />
               </div>
-              <h3 className="text-h3 text-unilog-text mb-2">Upload CSV</h3>
+              <h3 className="text-h3 text-unilog-text mb-2">Upload Excel</h3>
               <p className="text-body-sm text-unilog-textMuted">
-                Drag and drop or select your product CSV file. We validate the format automatically.
+                Drag and drop or select your .xlsx workbook. Must contain a sheet named Input.
               </p>
             </CardContent>
           </Card>
@@ -60,7 +60,7 @@ export function Dashboard() {
               </div>
               <h3 className="text-h3 text-unilog-text mb-2">Download Results</h3>
               <p className="text-body-sm text-unilog-textMuted">
-                Get your enriched CSV with all original data plus new validated fields.
+                Get your enriched Excel workbook with all original data plus new validated fields.
               </p>
             </CardContent>
           </Card>
@@ -80,7 +80,7 @@ export function Dashboard() {
               <Database className="h-12 w-12 text-unilog-border mx-auto mb-4" />
               <h3 className="text-h3 text-unilog-text mb-2">No enrichment jobs yet</h3>
               <p className="text-body-sm text-unilog-textMuted mb-6 max-w-md mx-auto">
-                Upload a CSV to start your first enrichment job. Jobs will appear here once created.
+                Upload an Excel workbook to start your first enrichment job. Jobs will appear here once created.
               </p>
               <Button onClick={handleNewJob} size="lg">
                 <PlusCircle className="h-5 w-5" />

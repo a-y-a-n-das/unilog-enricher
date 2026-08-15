@@ -71,7 +71,7 @@ export function JobsPage() {
             <FileText className="h-16 w-16 text-unilog-border mx-auto mb-4" />
             <h2 className="text-h3 text-unilog-text mb-2">No enrichment jobs yet</h2>
             <p className="text-body-sm text-unilog-textMuted mb-6 max-w-md mx-auto">
-              Upload a CSV to start your first enrichment job. Completed jobs will be saved here for easy access.
+              Upload an Excel workbook to start your first enrichment job. Completed jobs will be saved here for easy access.
             </p>
             <Button onClick={handleNewJob} size="lg">
               <PlusCircle className="h-5 w-5" />

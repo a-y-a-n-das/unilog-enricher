@@ -44,15 +44,16 @@ export function NewJob() {
       <div>
         <h1 className="text-display text-unilog-text">New Enrichment Job</h1>
         <p className="mt-2 text-body text-unilog-textMuted">
-          Upload your product CSV to start the enrichment pipeline.
+          Upload your Excel workbook to start the enrichment pipeline.
         </p>
       </div>
 
       <Card variant="elevated">
         <CardHeader>
-          <CardTitle>Upload CSV File</CardTitle>
+          <CardTitle>Upload Excel Workbook</CardTitle>
           <CardDescription>
             Drag and drop or click to browse. Maximum file size: 10MB.
+            The workbook must contain a sheet named Input.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -78,7 +79,7 @@ export function NewJob() {
               {uploading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Creating Job…
+                  Creating Job&hellip;
                 </>
               ) : (
                 <>
@@ -93,25 +94,25 @@ export function NewJob() {
 
       <Card>
         <CardHeader>
-          <CardTitle>CSV Requirements</CardTitle>
+          <CardTitle>Workbook Requirements</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <ul className="space-y-2 text-body-sm text-unilog-textMuted">
             <li className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>Must be a valid CSV file (.csv extension)</span>
+              <span>Must be a valid Excel workbook (.xlsx extension)</span>
             </li>
             <li className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>First row should contain column headers</span>
+              <span>Must contain a sheet named exactly Input (case-sensitive)</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
+              <span>First row of the Input sheet should contain column headers</span>
             </li>
             <li className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
               <span>Maximum 10MB file size</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-              <span>UTF-8 encoding recommended</span>
             </li>
           </ul>
         </CardContent>

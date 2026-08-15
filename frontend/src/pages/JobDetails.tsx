@@ -257,7 +257,7 @@ export function JobDetails() {
                 loading={downloading}
               >
                 <Download className="h-5 w-5" />
-                {downloading ? 'Preparing…' : job.output_available ? 'Download Enriched CSV' : 'Output Not Ready'}
+                {downloading ? 'Preparing…' : job.output_available ? 'Download Enriched Excel' : 'Output Not Ready'}
               </Button>
               {job.output_available && (
                 <p className="text-caption text-unilog-textMuted text-center">

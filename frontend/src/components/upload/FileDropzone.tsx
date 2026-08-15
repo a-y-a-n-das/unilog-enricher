@@ -1,7 +1,10 @@
 import { useState, useCallback, useRef, DragEvent, ChangeEvent } from 'react';
 import { cn } from '../../lib/utils';
-import { Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { formatFileSize } from '../../lib/utils';
+import * as XLSX from 'xlsx';
+
+const REQUIRED_SHEET = 'Input';
 
 export interface FileDropzoneProps {
   onFileSelect: (file: File | null) => void;
@@ -13,7 +16,7 @@ export interface FileDropzoneProps {
 
 export function FileDropzone({
   onFileSelect,
-  acceptedTypes = ['.csv', 'text/csv', 'application/csv'],
+  acceptedTypes = ['.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   maxSize = 10 * 1024 * 1024,
   disabled = false,
   className,
@@ -23,7 +26,7 @@ export function FileDropzone({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const validateFile = useCallback((file: File): string | null => {
+  const validateFile = useCallback(async (file: File): Promise<string | null> => {
     const isValidType = acceptedTypes.some((type) => {
       if (type.startsWith('.')) {
         return file.name.toLowerCase().endsWith(type.toLowerCase());
@@ -32,17 +35,28 @@ export function FileDropzone({
     });
 
     if (!isValidType) {
-      return 'Please select a CSV file';
+      return 'Please select an Excel workbook (.xlsx)';
     }
 
     if (file.size > maxSize) {
       return `File size must be less than ${formatFileSize(maxSize)}`;
     }
 
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+      if (!workbook.SheetNames.includes(REQUIRED_SHEET)) {
+        return `The Excel workbook must contain a sheet named "${REQUIRED_SHEET}".`;
+      }
+    } catch {
+      return 'Failed to parse the Excel workbook. Please ensure it is a valid .xlsx file.';
+    }
+
     return null;
   }, [acceptedTypes, maxSize]);
 
-  const handleFileSelect = useCallback((file: File | null) => {
+  const handleFileSelect = useCallback(async (file: File | null) => {
     if (!file) {
       setSelectedFile(null);
       setError(null);
@@ -50,7 +64,7 @@ export function FileDropzone({
       return;
     }
 
-    const validationError = validateFile(file);
+    const validationError = await validateFile(file);
     if (validationError) {
       setError(validationError);
       setSelectedFile(null);
@@ -121,7 +135,7 @@ export function FileDropzone({
         onChange={handleInputChange}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         disabled={disabled}
-        aria-label="Upload CSV file"
+        aria-label="Upload Excel workbook"
       />
 
       <div
@@ -171,11 +185,11 @@ export function FileDropzone({
         ) : (
           <>
             <div className="p-3 bg-unilog-bg rounded-lg border border-unilog-border mb-4">
-              <Upload className="h-10 w-10 text-unilog-textMuted mx-auto" />
+              <FileSpreadsheet className="h-10 w-10 text-unilog-textMuted mx-auto" />
             </div>
-            <p className="text-h3 text-unilog-text mb-1">Drop CSV file here</p>
+            <p className="text-h3 text-unilog-text mb-1">Drop Excel workbook here</p>
             <p className="text-body-sm text-unilog-textMuted mb-4">or browse files</p>
-            <p className="text-caption text-unilog-textMuted">CSV files supported</p>
+            <p className="text-caption text-unilog-textMuted">.xlsx files supported</p>
           </>
         )}
       </div>

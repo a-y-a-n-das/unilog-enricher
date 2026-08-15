@@ -276,7 +276,8 @@ def test_env_example_exists():
         if '=' in line:
             key, value = line.split('=', 1)
             # Values should be empty or placeholders only
-            assert value == "" or value.startswith("nvidia/") or value == "nvidia", \
+            # CORS_ORIGINS is allowed to have placeholder URLs
+            assert value == "" or value.startswith("nvidia/") or value == "nvidia" or key == "CORS_ORIGINS", \
                 f"Unexpected value for {key}: {value}"
 
 
@@ -318,9 +319,10 @@ def test_upload_size_limit(mock_dependencies):
 
 
 def test_cors_configuration():
-    """Test that CORS no longer allows credentials with wildcard origins."""
-    from api.app import app
+    """Test that CORS is configured from CORS_ORIGINS environment variable."""
+    from api.app import app, get_cors_origins
     from fastapi.middleware.cors import CORSMiddleware
+    import os
     
     # Find the CORS middleware
     cors_middleware = None
@@ -334,9 +336,20 @@ def test_cors_configuration():
     # Check options - they're stored in middleware.kwargs
     options = cors_middleware.kwargs
     assert options.get("allow_credentials") is False, \
-        "allow_credentials should be False when allow_origins is ['*']"
-    assert options.get("allow_origins") == ["*"], \
-        "allow_origins should be ['*'] for v1"
+        "allow_credentials should be False"
+    
+    # Verify the middleware uses the environment variable
+    # (without CORS_ORIGINS set, it should be empty list)
+    assert options.get("allow_origins") == [], \
+        "allow_origins should be empty list when CORS_ORIGINS not set"
+    
+    # Test get_cors_origins function
+    os.environ["CORS_ORIGINS"] = "http://localhost:5173,https://example.com"
+    try:
+        origins = get_cors_origins()
+        assert origins == ["http://localhost:5173", "https://example.com"]
+    finally:
+        del os.environ["CORS_ORIGINS"]
 
 
 def test_nvidia_client_no_debug_output(mock_dependencies):
