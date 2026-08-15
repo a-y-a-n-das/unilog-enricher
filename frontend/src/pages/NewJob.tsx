@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { FileDropzone } from '../components/upload/FileDropzone';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { jobsApi, isApiError } from '../api/jobs';
-import { addJobToHistory } from './Jobs';
 
 export function NewJob() {
   const navigate = useNavigate();
@@ -21,7 +20,6 @@ export function NewJob() {
 
     try {
       const response = await jobsApi.createJob(selectedFile);
-      addJobToHistory(response.job_id, selectedFile.name);
       navigate(`/jobs/${response.job_id}`);
     } catch (err) {
       if (isApiError(err)) {

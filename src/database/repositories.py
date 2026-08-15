@@ -191,3 +191,9 @@ def update_job_progress(job_id: uuid.UUID) -> Job | None:
         session.commit()
         session.refresh(job)
         return job
+
+
+def get_all_jobs() -> list[Job]:
+    with SessionLocal() as session:
+        stmt = select(Job).order_by(Job.created_at.desc())
+        return session.execute(stmt).scalars().all()

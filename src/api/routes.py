@@ -20,6 +20,7 @@ from api.models import (
     JobCreateResponse,
     JobRowResponse,
     JobStatusResponse,
+    JobListResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -114,6 +115,16 @@ async def create_job_endpoint(
         status=job.status,
         total_rows=job.total_rows,
     )
+
+
+@router.get(
+    "/jobs",
+    response_model=JobListResponse,
+)
+async def list_jobs_endpoint() -> JobListResponse:
+    jobs = repositories.get_all_jobs()
+    from api.models import make_job_status_response
+    return JobListResponse(jobs=[make_job_status_response(job) for job in jobs])
 
 
 @router.get(

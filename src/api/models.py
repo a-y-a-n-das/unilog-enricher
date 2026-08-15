@@ -36,6 +36,10 @@ class JobRowResponse(BaseModel):
     completed_at: datetime | None = None
 
 
+class JobListResponse(BaseModel):
+    jobs: list[JobStatusResponse]
+
+
 class ErrorResponse(BaseModel):
     detail: str
 

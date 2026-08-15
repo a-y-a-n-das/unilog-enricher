@@ -8,6 +8,11 @@ export const jobsApi = {
     return apiClient.post<JobCreateResponse>('/api/jobs', formData);
   },
 
+  async getJobs(): Promise<JobStatus[]> {
+    const response = await apiClient.get<{ jobs: JobStatus[] }>('/api/jobs');
+    return response.jobs;
+  },
+
   async getJob(jobId: string): Promise<JobStatus> {
     return apiClient.get<JobStatus>(`/api/jobs/${jobId}`);
   },
