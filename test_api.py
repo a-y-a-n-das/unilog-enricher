@@ -760,5 +760,307 @@ def test_repository_get_recoverable_jobs_excludes_jobs_without_pending_rows():
     print("test_repository_get_recoverable_jobs_excludes_jobs_without_pending_rows passed")
 
 
+def test_retry_failed_rows_endpoint():
+    """Test retry-failed endpoint requeues failed rows and resets job status."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+
+    # Create a job with some rows
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        InputRecord(row_number=2, data={"product_name": "Product 2"}),
+        InputRecord(row_number=3, data={"product_name": "Product 3"}),
+    ]
+    job = create_job(
+        input_filename="test_retry.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Manually set rows to failed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+
+        # Row 1: completed
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        rows[0].result_data = {"name": "Product 1"}
+
+        # Row 2: failed with attempts=1
+        rows[1].status = "failed"
+        rows[1].attempts = 1
+        rows[1].error_message = "Original error"
+        rows[1].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        # Row 3: failed with attempts=2
+        rows[2].status = "failed"
+        rows[2].attempts = 2
+        rows[2].error_message = "Another error"
+        rows[2].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        session.commit()
+
+    # Set job status to failed
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        j.status = "failed"
+        j.error_message = "Job failed"
+        session.commit()
+
+    # Call retry-failed endpoint
+    response = client.post(f"/api/jobs/{job_id}/retry-failed")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["retried_count"] == 2
+    assert "2 failed row(s) requeued" in data["message"]
+
+    # Verify rows: completed unchanged, failed -> pending, attempts preserved, error preserved
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+
+        # Row 1: still completed
+        assert rows[0].status == "completed"
+        assert rows[0].result_data == {"name": "Product 1"}
+
+        # Row 2: reset to pending, attempts preserved, error preserved
+        assert rows[1].status == "pending"
+        assert rows[1].attempts == 1
+        assert rows[1].error_message == "Original error"
+        assert rows[1].started_at is None
+        assert rows[1].completed_at is None
+
+        # Row 3: reset to pending, attempts preserved, error preserved
+        assert rows[2].status == "pending"
+        assert rows[2].attempts == 2
+        assert rows[2].error_message == "Another error"
+        assert rows[2].started_at is None
+        assert rows[2].completed_at is None
+
+    # Verify job status reset to queued
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        assert j.status == "queued"
+        assert j.started_at is None
+        assert j.completed_at is None
+        assert j.error_message is None
+
+    print("test_retry_failed_rows_endpoint passed")
+
+
+def test_retry_failed_rows_completed_job():
+    """Test retry-failed on a completed job with failed rows (partial success)."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+
+    # Create a job
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        InputRecord(row_number=2, data={"product_name": "Product 2"}),
+    ]
+    job = create_job(
+        input_filename="test_retry_completed.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry_completed.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Set row 1 completed, row 2 failed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        rows[0].result_data = {"name": "Product 1"}
+
+        rows[1].status = "failed"
+        rows[1].attempts = 1
+        rows[1].error_message = "Timeout"
+        rows[1].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        # Set job to completed
+        j = session.get(Job, job.id)
+        j.status = "completed"
+        j.completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+
+    # Call retry-failed endpoint
+    response = client.post(f"/api/jobs/{job_id}/retry-failed")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["retried_count"] == 1
+
+    # Verify job status reset to queued
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        assert j.status == "queued"
+        assert j.started_at is None
+        assert j.completed_at is None
+        assert j.error_message is None
+
+        # Verify row 1 unchanged, row 2 pending
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        assert rows[0].status == "completed"
+        assert rows[1].status == "pending"
+        assert rows[1].attempts == 1
+        assert rows[1].error_message == "Timeout"
+
+    print("test_retry_failed_rows_completed_job passed")
+
+
+def test_retry_failed_rows_queued_job_unchanged():
+    """Test retry-failed on queued job doesn't change job status."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+
+    # Create a job
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        InputRecord(row_number=2, data={"product_name": "Product 2"}),
+    ]
+    job = create_job(
+        input_filename="test_retry_queued.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry_queued.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Set row 1 completed, row 2 failed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        rows[1].status = "failed"
+        rows[1].attempts = 1
+        rows[1].error_message = "Error"
+        rows[1].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        # Job stays queued
+        session.commit()
+
+    # Call retry-failed endpoint
+    response = client.post(f"/api/jobs/{job_id}/retry-failed")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["retried_count"] == 1
+
+    # Verify job status unchanged (still queued)
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        assert j.status == "queued"
+        # started_at should still be None (was never set)
+        assert j.started_at is None
+
+        # Verify row 2 reset to pending
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        assert rows[1].status == "pending"
+        assert rows[1].attempts == 1
+        assert rows[1].error_message == "Error"
+
+    print("test_retry_failed_rows_queued_job_unchanged passed")
+
+
+def test_retry_failed_rows_no_failed_rows():
+    """Test retry-failed on job with no failed rows returns 0."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+
+    # Create a job with all rows completed
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+    ]
+    job = create_job(
+        input_filename="test_retry_none.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry_none.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Set row completed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id)
+        ).scalars().all()
+
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        j = session.get(Job, job.id)
+        j.status = "completed"
+        session.commit()
+
+    # Call retry-failed endpoint
+    response = client.post(f"/api/jobs/{job_id}/retry-failed")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["retried_count"] == 0
+
+    # Verify job status unchanged
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        assert j.status == "completed"
+
+    print("test_retry_failed_rows_no_failed_rows passed")
+
+
+def test_retry_failed_rows_nonexistent_job():
+    """Test retry-failed on nonexistent job returns 404."""
+    from api.app import app
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+
+    response = client.post("/api/jobs/00000000-0000-0000-0000-000000000000/retry-failed")
+    assert response.status_code == 404
+
+    print("test_retry_failed_rows_nonexistent_job passed")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

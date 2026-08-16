@@ -84,3 +84,10 @@ def get_job_status(job_id: str) -> JobStatus | None:
         successful_rows=job.successful_rows,
         failed_rows=job.failed_rows,
     )
+
+
+def retry_failed_rows(job_id: str) -> tuple[int, Job | None]:
+    job = repositories.get_job(job_id)
+    if job is None:
+        raise ValueError("Job not found")
+    return repositories.requeue_failed_rows(job.id)

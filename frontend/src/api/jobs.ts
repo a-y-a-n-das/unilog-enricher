@@ -1,5 +1,5 @@
 import { apiClient, ApiError, isApiError } from './client';
-import type { JobCreateResponse, JobStatus, JobRow } from '../types/api';
+import type { JobCreateResponse, JobStatus, JobRow, RetryFailedResponse } from '../types/api';
 
 export const jobsApi = {
   async createJob(file: File): Promise<JobCreateResponse> {
@@ -19,6 +19,10 @@ export const jobsApi = {
 
   async getJobRows(jobId: string): Promise<JobRow[]> {
     return apiClient.get<JobRow[]>(`/api/jobs/${jobId}/rows`);
+  },
+
+  async retryFailedRows(jobId: string): Promise<RetryFailedResponse> {
+    return apiClient.post<RetryFailedResponse>(`/api/jobs/${jobId}/retry-failed`, {});
   },
 
   async downloadJob(jobId: string, filename: string): Promise<void> {

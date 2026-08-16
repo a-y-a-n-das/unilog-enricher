@@ -11,7 +11,7 @@ import {
 import { JobProgress } from "../components/jobs/JobProgress";
 import { JobRowsTable } from "../components/jobs/JobRowsTable";
 import { SystemStatus } from "../components/layout/SystemStatus";
-import { Download, RefreshCw, ArrowLeft, AlertCircle } from "lucide-react";
+import { Download, RefreshCw, ArrowLeft, AlertCircle, RotateCcw } from "lucide-react";
 import { jobsApi, isApiError } from "../api/jobs";
 import { formatDate, truncate } from "../lib/utils";
 import { calculateRemaining, isTerminalStatus } from "../types/api";
@@ -31,6 +31,7 @@ export function JobDetails() {
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
@@ -89,6 +90,24 @@ export function JobDetails() {
     await fetchJob();
     await fetchRows();
     setLoading(false);
+  };
+
+  const handleRetryFailed = async () => {
+    if (!job || retrying) return;
+    setRetrying(true);
+    try {
+      await jobsApi.retryFailedRows(job.job_id);
+      await fetchJob();
+      await fetchRows();
+    } catch (err) {
+      if (isApiError(err)) {
+        setError(err.detail);
+      } else {
+        setError("Retry failed");
+      }
+    } finally {
+      setRetrying(false);
+    }
   };
 
   useEffect(() => {
@@ -312,6 +331,19 @@ export function JobDetails() {
                     ? "Download Current Results"
                     : "Output Not Ready"}
               </Button>
+              {job.failed_rows > 0 && (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="secondary"
+                  onClick={handleRetryFailed}
+                  disabled={polling || job.failed_rows === 0}
+                  loading={retrying}
+                >
+                  <RotateCcw className="h-5 w-5" />
+                  {retrying ? "Retrying…" : `Retry Failed Rows (${job.failed_rows})`}
+                </Button>
+              )}
               {job.output_available && (
                 <p className="text-caption text-unilog-textMuted text-center">
                   Enriched file includes all original columns plus validated

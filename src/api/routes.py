@@ -23,6 +23,7 @@ from api.models import (
     JobRowResponse,
     JobStatusResponse,
     JobListResponse,
+    RetryFailedResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -35,7 +36,7 @@ from database.models import Job
 from models.input_models import InputRecord
 from pipeline.input.csv import load_input_csv
 from pipeline.input.xlsx import load_input_xlsx
-from services.job_service import ValidationError, create_job
+from services.job_service import ValidationError, create_job, get_job_status, retry_failed_rows
 from services.processing_service import ProcessingService
 from services.worker import Worker
 
@@ -167,6 +168,25 @@ async def get_job_rows_endpoint(job_id: str) -> list[JobRowResponse]:
 
     from api.models import make_job_row_response
     return [make_job_row_response(row) for row in rows]
+
+
+@router.post(
+    "/jobs/{job_id}/retry-failed",
+    response_model=RetryFailedResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "Job not found"},
+    },
+)
+async def retry_failed_rows_endpoint(job_id: str) -> RetryFailedResponse:
+    try:
+        retried_count, job = retry_failed_rows(job_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return RetryFailedResponse(
+        retried_count=retried_count,
+        message=f"{retried_count} failed row(s) requeued for processing",
+    )
 
 
 @router.get(

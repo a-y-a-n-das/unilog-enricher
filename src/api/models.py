@@ -45,6 +45,11 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+class RetryFailedResponse(BaseModel):
+    retried_count: int
+    message: str
+
+
 def make_job_status_response(job) -> JobStatusResponse:
     return JobStatusResponse(
         job_id=str(job.id),

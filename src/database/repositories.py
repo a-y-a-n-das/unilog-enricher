@@ -265,3 +265,62 @@ def reset_job_for_recovery(job_id: uuid.UUID) -> Job | None:
         session.commit()
         session.refresh(job)
         return job
+
+
+def requeue_failed_rows(job_id: uuid.UUID) -> tuple[int, Job | None]:
+    """
+    Requeue all failed rows for a job as pending.
+    Also resets job status from 'failed'/'completed' to 'queued' if failed rows are requeued.
+
+    Preserves (rows):
+    - attempts count (incremented when processing actually starts)
+    - error_message (history preserved)
+    - result_data (if any)
+
+    Resets (rows):
+    - status -> "pending"
+    - started_at -> None
+    - completed_at -> None
+
+    Resets (job) ONLY when retried_count > 0:
+    - status: "failed" or "completed" -> "queued"
+    - started_at -> None
+    - completed_at -> None
+    - error_message -> None (job-level)
+
+    Does NOT reset job if status is "queued" or "processing"
+
+    Returns: (retried_count, updated_job)
+    """
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(JobRow)
+            .where(JobRow.job_id == job_id)
+            .where(JobRow.status == "failed")
+        ).scalars().all()
+
+        count = 0
+        for row in rows:
+            row.status = "pending"
+            row.started_at = None
+            row.completed_at = None
+            # error_message preserved
+            # attempts preserved
+            # result_data preserved
+            count += 1
+
+        job = session.get(Job, job_id)
+        job_status_reset = False
+        if job and count > 0 and job.status in ("failed", "completed"):
+            job.status = "queued"
+            job.started_at = None
+            job.completed_at = None
+            job.error_message = None
+            job_status_reset = True
+
+        if count > 0 or job_status_reset:
+            session.commit()
+            if job:
+                session.refresh(job)
+
+        return count, job

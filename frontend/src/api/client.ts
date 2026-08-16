@@ -48,10 +48,11 @@ export const apiClient = {
     return handleResponse<T>(response);
   },
 
-  async post<T>(endpoint: string, body: FormData): Promise<T> {
+  async post<T>(endpoint: string, body?: FormData | object): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      body,
+      headers: body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     });
     return handleResponse<T>(response);
   },

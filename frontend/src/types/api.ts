@@ -37,6 +37,11 @@ export interface ApiError {
   detail: string;
 }
 
+export interface RetryFailedResponse {
+  retried_count: number;
+  message: string;
+}
+
 export type JobStatusType = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface JobHistoryEntry {
