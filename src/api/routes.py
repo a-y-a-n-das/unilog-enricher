@@ -191,6 +191,10 @@ async def retry_failed_rows_endpoint(
         worker = Worker(processing_service)
         background_tasks.add_task(worker.run_job, job_id)
 
+    # Refresh job progress so counts reflect requeued rows immediately
+    if retried_count > 0:
+        repositories.update_job_progress(job_id)
+
     return RetryFailedResponse(
         retried_count=retried_count,
         message=f"{retried_count} failed row(s) requeued for processing",
