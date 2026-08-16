@@ -18,7 +18,7 @@ import { calculateRemaining, isTerminalStatus } from "../types/api";
 import { cn } from "../lib/utils";
 import type { JobStatus, JobRow } from "../types/api";
 
-const POLL_INTERVAL = 2500;
+const POLL_INTERVAL = 10000;
 
 export function JobDetails() {
   const { jobId } = useParams<{ jobId: string }>();
