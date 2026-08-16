@@ -195,7 +195,7 @@ export function JobDetails() {
 
       <Card variant="elevated">
         <CardContent className="pt-6">
-          <JobProgress job={job} rows={rows} />
+op          <JobProgress job={job} rows={rows} />
         </CardContent>
       </Card>
 

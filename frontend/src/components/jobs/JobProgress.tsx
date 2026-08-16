@@ -33,7 +33,7 @@ export function JobProgress({ job, rows = [], compact = false }: JobProgressProp
             {progress}%
           </span>
         </div>
-        <div className="text-body-sm text-unilog-textMuted font-mono tabular-nums whitespace-nowrap">
+        <div className="inline-flex items-center px-3 py-1 rounded-lg border border-unilog-border bg-unilog-bgElevated text-unilog-text font-mono tabular-nums text-body-sm whitespace-nowrap">
           Active workers: {activeWorkers}
         </div>
       </div>
