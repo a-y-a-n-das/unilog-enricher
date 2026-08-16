@@ -331,13 +331,13 @@ export function JobDetails() {
                     ? "Download Current Results"
                     : "Output Not Ready"}
               </Button>
-              {job.failed_rows > 0 && (
+              {job.failed_rows > 0 && isComplete && (
                 <Button
                   className="w-full"
                   size="lg"
                   variant="secondary"
                   onClick={handleRetryFailed}
-                  disabled={polling || job.failed_rows === 0}
+                  disabled={polling || retrying}
                   loading={retrying}
                 >
                   <RotateCcw className="h-5 w-5" />
