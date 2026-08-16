@@ -1,15 +1,17 @@
 import { Progress } from '../ui/Progress';
 import { calculateProgress, calculateRemaining } from '../../types/api';
-import type { JobStatus } from '../../types/api';
+import type { JobStatus, JobRow } from '../../types/api';
 
 export interface JobProgressProps {
   job: JobStatus;
+  rows?: JobRow[];
   compact?: boolean;
 }
 
-export function JobProgress({ job, compact = false }: JobProgressProps) {
+export function JobProgress({ job, rows = [], compact = false }: JobProgressProps) {
   const progress = calculateProgress(job);
   const remaining = calculateRemaining(job);
+  const activeWorkers = rows.filter(row => row.status === 'processing').length;
 
   if (compact) {
     return (
@@ -30,6 +32,9 @@ export function JobProgress({ job, compact = false }: JobProgressProps) {
           <span className="text-h3 text-unilog-text font-medium tabular-nums w-14 text-right">
             {progress}%
           </span>
+        </div>
+        <div className="text-body-sm text-unilog-textMuted font-mono tabular-nums whitespace-nowrap">
+          Active workers: {activeWorkers}
         </div>
       </div>
 
