@@ -1,16 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
-import { JobProgress } from '../components/jobs/JobProgress';
-import { JobRowsTable } from '../components/jobs/JobRowsTable';
-import { SystemStatus } from '../components/layout/SystemStatus';
-import { Download, RefreshCw, ArrowLeft, AlertCircle } from 'lucide-react';
-import { jobsApi, isApiError } from '../api/jobs';
-import { formatDate, truncate } from '../lib/utils';
-import { calculateRemaining, isTerminalStatus } from '../types/api';
-import { cn } from '../lib/utils';
-import type { JobStatus, JobRow } from '../types/api';
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Button } from "../components/ui/Button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "../components/ui/Card";
+import { JobProgress } from "../components/jobs/JobProgress";
+import { JobRowsTable } from "../components/jobs/JobRowsTable";
+import { SystemStatus } from "../components/layout/SystemStatus";
+import { Download, RefreshCw, ArrowLeft, AlertCircle } from "lucide-react";
+import { jobsApi, isApiError } from "../api/jobs";
+import { formatDate, truncate } from "../lib/utils";
+import { calculateRemaining, isTerminalStatus } from "../types/api";
+import { cn } from "../lib/utils";
+import type { JobStatus, JobRow } from "../types/api";
 
 const POLL_INTERVAL = 2500;
 
@@ -36,12 +42,12 @@ export function JobDetails() {
     } catch (err) {
       if (isApiError(err)) {
         if (err.status === 404) {
-          setError('Job not found');
+          setError("Job not found");
         } else {
           setError(err.detail);
         }
       } else {
-        setError('Failed to load job details');
+        setError("Failed to load job details");
       }
       return null;
     }
@@ -55,7 +61,7 @@ export function JobDetails() {
       setRows(data);
     } catch (err) {
       if (isApiError(err)) {
-        console.error('Failed to load rows:', err.detail);
+        console.error("Failed to load rows:", err.detail);
       }
     } finally {
       setRowsLoading(false);
@@ -71,7 +77,7 @@ export function JobDetails() {
       if (isApiError(err)) {
         setError(err.detail);
       } else {
-        setError('Download failed');
+        setError("Download failed");
       }
     } finally {
       setDownloading(false);
@@ -151,9 +157,11 @@ export function JobDetails() {
         <Card variant="elevated">
           <CardContent className="py-12 text-center">
             <AlertCircle className="h-12 w-12 text-unilog-error mx-auto mb-4" />
-            <h2 className="text-h3 text-unilog-text mb-2">Unable to load job</h2>
+            <h2 className="text-h3 text-unilog-text mb-2">
+              Unable to load job
+            </h2>
             <p className="text-body text-unilog-textMuted mb-6">{error}</p>
-            <Button variant="secondary" onClick={() => navigate('/jobs')}>
+            <Button variant="secondary" onClick={() => navigate("/jobs")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Jobs
             </Button>
@@ -173,20 +181,37 @@ export function JobDetails() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-h2 text-unilog-text truncate">{job.input_filename}</h1>
-            <span className="text-caption text-unilog-textMuted font-mono">{truncate(job.job_id, 12)}</span>
+            <h1 className="text-h2 text-unilog-text truncate">
+              {job.input_filename}
+            </h1>
+            <span className="text-caption text-unilog-textMuted font-mono">
+              {truncate(job.job_id, 12)}
+            </span>
           </div>
           <div className="flex items-center gap-4 text-body-sm text-unilog-textMuted">
             <span>Created {formatDate(job.created_at)}</span>
-            {job.started_at && <span>• Started {formatDate(job.started_at)}</span>}
-            {job.completed_at && <span>• Completed {formatDate(job.completed_at)}</span>}
+            {job.started_at && (
+              <span>• Started {formatDate(job.started_at)}</span>
+            )}
+            {job.completed_at && (
+              <span>• Completed {formatDate(job.completed_at)}</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={polling}>
-            <RefreshCw className={cn('h-4 w-4', polling && 'animate-spin')} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={polling}
+          >
+            <RefreshCw className={cn("h-4 w-4", polling && "animate-spin")} />
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => navigate('/jobs')}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate("/jobs")}
+          >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Jobs
           </Button>
@@ -195,7 +220,7 @@ export function JobDetails() {
 
       <Card variant="elevated">
         <CardContent className="pt-6">
-op          <JobProgress job={job} rows={rows} />
+          <JobProgress job={job} rows={rows} />
         </CardContent>
       </Card>
 
@@ -205,9 +230,19 @@ op          <JobProgress job={job} rows={rows} />
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Row Status</CardTitle>
-                <CardDescription>{rows.length} rows in this job</CardDescription>
+                <CardDescription>
+                  {rows.length} rows in this job
+                </CardDescription>
               </div>
-              <SystemStatus status={job.output_available ? 'ok' : job.status === 'failed' ? 'down' : 'checking'} />
+              <SystemStatus
+                status={
+                  job.output_available
+                    ? "ok"
+                    : job.status === "failed"
+                      ? "down"
+                      : "checking"
+                }
+              />
             </CardHeader>
             <CardContent className="pt-0">
               <JobRowsTable rows={rows} loading={rowsLoading} />
@@ -224,21 +259,35 @@ op          <JobProgress job={job} rows={rows} />
               <dl className="space-y-3 text-body-sm">
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
                   <dt className="text-unilog-textMuted">Job ID</dt>
-                  <dd className="font-mono text-unilog-text break-all">{job.job_id}</dd>
+                  <dd className="font-mono text-unilog-text break-all">
+                    {job.job_id}
+                  </dd>
                   <dt className="text-unilog-textMuted">Status</dt>
-                  <dd className="font-medium text-unilog-text capitalize">{job.status}</dd>
+                  <dd className="font-medium text-unilog-text capitalize">
+                    {job.status}
+                  </dd>
                   <dt className="text-unilog-textMuted">Format</dt>
                   <dd className="text-unilog-text">{job.input_format}</dd>
                   <dt className="text-unilog-textMuted">Total Rows</dt>
-                  <dd className="font-mono tabular-nums text-unilog-text">{job.total_rows}</dd>
+                  <dd className="font-mono tabular-nums text-unilog-text">
+                    {job.total_rows}
+                  </dd>
                   <dt className="text-unilog-textMuted">Processed</dt>
-                  <dd className="font-mono tabular-nums text-unilog-text">{job.processed_rows}</dd>
+                  <dd className="font-mono tabular-nums text-unilog-text">
+                    {job.processed_rows}
+                  </dd>
                   <dt className="text-unilog-textMuted">Successful</dt>
-                  <dd className="font-mono tabular-nums text-unilog-success">{job.successful_rows}</dd>
+                  <dd className="font-mono tabular-nums text-unilog-success">
+                    {job.successful_rows}
+                  </dd>
                   <dt className="text-unilog-textMuted">Failed</dt>
-                  <dd className="font-mono tabular-nums text-unilog-error">{job.failed_rows}</dd>
+                  <dd className="font-mono tabular-nums text-unilog-error">
+                    {job.failed_rows}
+                  </dd>
                   <dt className="text-unilog-textMuted">Remaining</dt>
-                  <dd className="font-mono tabular-nums text-unilog-textMuted">{remaining}</dd>
+                  <dd className="font-mono tabular-nums text-unilog-textMuted">
+                    {remaining}
+                  </dd>
                 </div>
               </dl>
             </CardContent>
@@ -257,28 +306,39 @@ op          <JobProgress job={job} rows={rows} />
                 loading={downloading}
               >
                 <Download className="h-5 w-5" />
-                {downloading ? 'Preparing…' : job.processed_rows > 0 ? 'Download Current Results' : 'Output Not Ready'}
+                {downloading
+                  ? "Preparing…"
+                  : job.processed_rows > 0
+                    ? "Download Current Results"
+                    : "Output Not Ready"}
               </Button>
               {job.output_available && (
                 <p className="text-caption text-unilog-textMuted text-center">
-                  Enriched file includes all original columns plus validated enrichment data
+                  Enriched file includes all original columns plus validated
+                  enrichment data
                 </p>
               )}
-              {job.processed_rows > 0 && !job.output_available && !isComplete && (
-                <p className="text-caption text-unilog-textMuted text-center">
-                  Partial download available while job is processing
-                </p>
-              )}
-              {!job.output_available && job.processed_rows === 0 && !isComplete && (
-                <p className="text-caption text-unilog-textMuted text-center">
-                  Download available when at least one row is processed
-                </p>
-              )}
-              {isComplete && job.failed_rows > 0 && job.failed_rows === job.total_rows && (
-                <p className="text-caption text-unilog-error text-center">
-                  All rows failed. Check row errors for details.
-                </p>
-              )}
+              {job.processed_rows > 0 &&
+                !job.output_available &&
+                !isComplete && (
+                  <p className="text-caption text-unilog-textMuted text-center">
+                    Partial download available while job is processing
+                  </p>
+                )}
+              {!job.output_available &&
+                job.processed_rows === 0 &&
+                !isComplete && (
+                  <p className="text-caption text-unilog-textMuted text-center">
+                    Download available when at least one row is processed
+                  </p>
+                )}
+              {isComplete &&
+                job.failed_rows > 0 &&
+                job.failed_rows === job.total_rows && (
+                  <p className="text-caption text-unilog-error text-center">
+                    All rows failed. Check row errors for details.
+                  </p>
+                )}
             </CardContent>
           </Card>
         </div>
