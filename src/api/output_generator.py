@@ -319,9 +319,9 @@ def _build_workbook(
         # Create new workbook
         wb = openpyxl.Workbook()
 
-        # Input sheet
-        ws_input = wb.create_sheet("Input")
-        ws_input.append(["row_number"] + input_headers)
+        # Rename the default worksheet to Input
+        ws_input = wb.active
+        ws_input.title = "Input"
 
         for row in rows:
             row_data = {"row_number": row.row_number}
@@ -430,9 +430,9 @@ def _build_workbook(
         # CSV: no template
         wb = openpyxl.Workbook()
 
-        # Input sheet
-        ws_input = wb.create_sheet("Input")
-        ws_input.append(["row_number"] + input_headers)
+        # Rename the default worksheet to Input
+        ws_input = wb.active
+        ws_input.title = "Input"
 
         for row in rows:
             row_data = {"row_number": row.row_number}
