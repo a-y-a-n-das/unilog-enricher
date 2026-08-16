@@ -446,5 +446,319 @@ def test_download_filename_deterministic(mock_dependencies):
     assert "test" not in filename.lower(), "Should not contain original filename"
 
 
+def test_repository_get_recoverable_jobs():
+    """Test that get_recoverable_jobs finds queued and processing jobs with pending/processing rows."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    import uuid
+
+    # Create a queued job with pending rows
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        InputRecord(row_number=2, data={"product_name": "Product 2"}),
+    ]
+    queued_job = create_job(
+        input_filename="test_queued.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_queued.csv",
+        rows=records,
+    )
+
+    # Create a processing job with mixed row statuses
+    processing_job = create_job(
+        input_filename="test_processing.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_processing.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product A"}),
+            InputRecord(row_number=2, data={"product_name": "Product B"}),
+            InputRecord(row_number=3, data={"product_name": "Product C"}),
+        ],
+    )
+    # Manually set job to processing and rows to mixed statuses
+    with SessionLocal() as session:
+        job = session.get(Job, processing_job.id)
+        job.status = "processing"
+        job.started_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == processing_job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        
+        # Row 1: completed
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        # Row 2: processing (stuck)
+        rows[1].status = "processing"
+        rows[1].attempts = 1
+        rows[1].started_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        # Row 3: pending
+        rows[2].status = "pending"
+        
+        session.commit()
+
+    # Create a completed job (should NOT be recoverable)
+    completed_job = create_job(
+        input_filename="test_completed.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_completed.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product X"}),
+        ],
+    )
+    with SessionLocal() as session:
+        job = session.get(Job, completed_job.id)
+        job.status = "completed"
+        job.completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == completed_job.id)
+        ).scalars().all()
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+
+    # Create a failed job (should NOT be recoverable)
+    failed_job = create_job(
+        input_filename="test_failed.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_failed.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product Y"}),
+        ],
+    )
+    with SessionLocal() as session:
+        job = session.get(Job, failed_job.id)
+        job.status = "failed"
+        job.error_message = "Some error"
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == failed_job.id)
+        ).scalars().all()
+        rows[0].status = "failed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+
+    # Test get_recoverable_jobs
+    recoverable = repositories.get_recoverable_jobs()
+    recoverable_ids = {str(j.id) for j in recoverable}
+
+    assert str(queued_job.id) in recoverable_ids, "Queued job with pending rows should be recoverable"
+    assert str(processing_job.id) in recoverable_ids, "Processing job with pending/processing rows should be recoverable"
+    assert str(completed_job.id) not in recoverable_ids, "Completed job should not be recoverable"
+    assert str(failed_job.id) not in recoverable_ids, "Failed job should not be recoverable"
+
+    print("test_repository_get_recoverable_jobs passed")
+
+
+def test_repository_reset_processing_rows():
+    """Test that reset_processing_rows resets processing rows to pending and preserves attempts."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+
+    job = create_job(
+        input_filename="test_reset.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_reset.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product 1"}),
+            InputRecord(row_number=2, data={"product_name": "Product 2"}),
+            InputRecord(row_number=3, data={"product_name": "Product 3"}),
+        ],
+    )
+
+    # Set up mixed row statuses
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        
+        # Row 1: completed (should NOT be reset)
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        # Row 2: processing with attempts=2 (should be reset to pending, attempts preserved)
+        rows[1].status = "processing"
+        rows[1].attempts = 2
+        rows[1].started_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        # Row 3: pending (should NOT be reset)
+        rows[2].status = "pending"
+        
+        session.commit()
+
+    # Reset processing rows
+    reset_count = repositories.reset_processing_rows(job.id)
+    assert reset_count == 1, "Should reset exactly 1 row"
+
+    # Verify results
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        
+        # Row 1: still completed
+        assert rows[0].status == "completed"
+        # Row 2: reset to pending, attempts preserved
+        assert rows[1].status == "pending"
+        assert rows[1].attempts == 2, "Attempts should be preserved"
+        assert rows[1].started_at is None, "started_at should be cleared"
+        # Row 3: still pending
+        assert rows[2].status == "pending"
+        assert rows[2].attempts == 0
+
+    print("test_repository_reset_processing_rows passed")
+
+
+def test_repository_reset_job_for_recovery():
+    """Test that reset_job_for_recovery resets job status to queued and clears started_at."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    import datetime
+
+    job = create_job(
+        input_filename="test_reset_job.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_reset_job.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        ],
+    )
+
+    # Set job to processing with started_at
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        j.status = "processing"
+        j.started_at = datetime.datetime.now(datetime.timezone.utc)
+        session.commit()
+
+    # Reset job for recovery
+    reset_job = repositories.reset_job_for_recovery(job.id)
+    assert reset_job is not None
+    assert reset_job.status == "queued"
+    assert reset_job.started_at is None
+    # completed_at should remain None (not set yet)
+    assert reset_job.completed_at is None
+
+    print("test_repository_reset_job_for_recovery passed")
+
+
+def test_recovery_preserves_completed_rows():
+    """Test that recovery does not affect completed rows."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    import datetime
+
+    job = create_job(
+        input_filename="test_preserve.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_preserve.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product 1"}),
+            InputRecord(row_number=2, data={"product_name": "Product 2"}),
+        ],
+    )
+
+    # Set up: row 1 completed, row 2 processing
+    with SessionLocal() as session:
+        j = session.get(Job, job.id)
+        j.status = "processing"
+        j.started_at = datetime.datetime.now(datetime.timezone.utc)
+        
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        
+        rows[0].status = "completed"
+        rows[0].completed_at = datetime.datetime.now(datetime.timezone.utc)
+        rows[0].result_data = {"name": "Product 1"}
+        
+        rows[1].status = "processing"
+        rows[1].attempts = 1
+        rows[1].started_at = datetime.datetime.now(datetime.timezone.utc)
+        
+        session.commit()
+
+    # Run recovery steps
+    repositories.reset_processing_rows(job.id)
+    repositories.reset_job_for_recovery(job.id)
+
+    # Verify completed row untouched, processing row reset
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        
+        assert rows[0].status == "completed"
+        assert rows[0].result_data == {"name": "Product 1"}
+        assert rows[1].status == "pending"
+        assert rows[1].attempts == 1  # preserved
+
+    print("test_recovery_preserves_completed_rows passed")
+
+
+def test_repository_get_recoverable_jobs_excludes_jobs_without_pending_rows():
+    """Test that jobs with only completed/failed rows are not recoverable."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+
+    # Job with all rows completed
+    job_completed = create_job(
+        input_filename="test_all_completed.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_all_completed.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        ],
+    )
+    with SessionLocal() as session:
+        j = session.get(Job, job_completed.id)
+        j.status = "queued"  # still queued but all rows done
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job_completed.id)
+        ).scalars().all()
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+
+    # Job with all rows failed
+    job_failed = create_job(
+        input_filename="test_all_failed.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_all_failed.csv",
+        rows=[
+            InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        ],
+    )
+    with SessionLocal() as session:
+        j = session.get(Job, job_failed.id)
+        j.status = "processing"
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job_failed.id)
+        ).scalars().all()
+        rows[0].status = "failed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        session.commit()
+
+    recoverable = repositories.get_recoverable_jobs()
+    recoverable_ids = {str(j.id) for j in recoverable}
+
+    assert str(job_completed.id) not in recoverable_ids, "Job with all completed rows should not be recoverable"
+    assert str(job_failed.id) not in recoverable_ids, "Job with all failed rows should not be recoverable"
+
+    print("test_repository_get_recoverable_jobs_excludes_jobs_without_pending_rows passed")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

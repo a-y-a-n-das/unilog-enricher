@@ -197,3 +197,71 @@ def get_all_jobs() -> list[Job]:
     with SessionLocal() as session:
         stmt = select(Job).where(Job.job_type == "production").order_by(Job.created_at.desc())
         return session.execute(stmt).scalars().all()
+
+
+def get_recoverable_jobs() -> list[Job]:
+    """
+    Get jobs that need recovery after a restart.
+
+    Includes jobs with status 'queued' or 'processing' that have
+    at least one row in 'pending' or 'processing' state.
+    """
+    with SessionLocal() as session:
+        stmt = (
+            select(Job)
+            .where(Job.job_type == "production")
+            .where(Job.status.in_(["queued", "processing"]))
+            .where(
+                select(JobRow.id)
+                .where(JobRow.job_id == Job.id)
+                .where(JobRow.status.in_(["pending", "processing"]))
+                .exists()
+            )
+            .order_by(Job.created_at.desc())
+        )
+        return session.execute(stmt).scalars().all()
+
+
+def reset_processing_rows(job_id: uuid.UUID) -> int:
+    """
+    Reset rows with status='processing' back to 'pending' for a job.
+
+    Preserves the attempts count (does not decrement).
+    Returns the number of rows reset.
+    """
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(JobRow)
+            .where(JobRow.job_id == job_id)
+            .where(JobRow.status == "processing")
+        ).scalars().all()
+
+        count = 0
+        for row in rows:
+            row.status = "pending"
+            row.started_at = None
+            count += 1
+
+        if count > 0:
+            session.commit()
+
+        return count
+
+
+def reset_job_for_recovery(job_id: uuid.UUID) -> Job | None:
+    """
+    Reset a job to 'queued' status for recovery.
+
+    Clears started_at so the job can be restarted fresh.
+    Does not modify completed_at or error_message.
+    """
+    with SessionLocal() as session:
+        job = session.get(Job, job_id)
+        if job is None:
+            return None
+
+        job.status = "queued"
+        job.started_at = None
+        session.commit()
+        session.refresh(job)
+        return job
