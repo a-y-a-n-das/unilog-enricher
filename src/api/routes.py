@@ -177,11 +177,19 @@ async def get_job_rows_endpoint(job_id: str) -> list[JobRowResponse]:
         404: {"model": ErrorResponse, "description": "Job not found"},
     },
 )
-async def retry_failed_rows_endpoint(job_id: str) -> RetryFailedResponse:
+async def retry_failed_rows_endpoint(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+) -> RetryFailedResponse:
     try:
         retried_count, job = retry_failed_rows(job_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    if retried_count > 0:
+        processing_service = ProcessingService()
+        worker = Worker(processing_service)
+        background_tasks.add_task(worker.run_job, job_id)
 
     return RetryFailedResponse(
         retried_count=retried_count,

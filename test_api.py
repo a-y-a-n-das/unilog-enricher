@@ -769,6 +769,7 @@ def test_retry_failed_rows_endpoint():
     from services.job_service import create_job
     from api.app import app
     from fastapi.testclient import TestClient
+    from unittest.mock import patch, MagicMock
 
     client = TestClient(app)
 
@@ -818,12 +819,17 @@ def test_retry_failed_rows_endpoint():
         j.error_message = "Job failed"
         session.commit()
 
-    # Call retry-failed endpoint
-    response = client.post(f"/api/jobs/{job_id}/retry-failed")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["retried_count"] == 2
-    assert "2 failed row(s) requeued" in data["message"]
+    # Mock the Worker to prevent background task from running real processing
+    with patch("api.routes.Worker") as mock_worker_class:
+        mock_worker = MagicMock()
+        mock_worker_class.return_value = mock_worker
+
+        # Call retry-failed endpoint
+        response = client.post(f"/api/jobs/{job_id}/retry-failed")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retried_count"] == 2
+        assert "2 failed row(s) requeued" in data["message"]
 
     # Verify rows: completed unchanged, failed -> pending, attempts preserved, error preserved
     with SessionLocal() as session:
@@ -906,11 +912,15 @@ def test_retry_failed_rows_completed_job():
         j.completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         session.commit()
 
-    # Call retry-failed endpoint
-    response = client.post(f"/api/jobs/{job_id}/retry-failed")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["retried_count"] == 1
+    # Call retry-failed endpoint with mocked Worker
+    with patch("api.routes.Worker") as mock_worker_class:
+        mock_worker = MagicMock()
+        mock_worker_class.return_value = mock_worker
+
+        response = client.post(f"/api/jobs/{job_id}/retry-failed")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retried_count"] == 1
 
     # Verify job status reset to queued
     with SessionLocal() as session:
@@ -941,6 +951,7 @@ def test_retry_failed_rows_queued_job_unchanged():
     from services.job_service import create_job
     from api.app import app
     from fastapi.testclient import TestClient
+    from unittest.mock import patch, MagicMock
 
     client = TestClient(app)
 
@@ -974,11 +985,15 @@ def test_retry_failed_rows_queued_job_unchanged():
         # Job stays queued
         session.commit()
 
-    # Call retry-failed endpoint
-    response = client.post(f"/api/jobs/{job_id}/retry-failed")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["retried_count"] == 1
+    # Call retry-failed endpoint with mocked Worker
+    with patch("api.routes.Worker") as mock_worker_class:
+        mock_worker = MagicMock()
+        mock_worker_class.return_value = mock_worker
+
+        response = client.post(f"/api/jobs/{job_id}/retry-failed")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retried_count"] == 1
 
     # Verify job status unchanged (still queued)
     with SessionLocal() as session:
@@ -1060,6 +1075,129 @@ def test_retry_failed_rows_nonexistent_job():
     assert response.status_code == 404
 
     print("test_retry_failed_rows_nonexistent_job passed")
+
+
+def test_retry_failed_rows_launches_worker():
+    """Test that retry-failed launches a worker when failed rows exist."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+    from unittest.mock import MagicMock, patch
+
+    client = TestClient(app)
+
+    # Create a job with failed rows
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+        InputRecord(row_number=2, data={"product_name": "Product 2"}),
+    ]
+    job = create_job(
+        input_filename="test_retry_worker.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry_worker.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Set rows to failed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+
+        rows[0].status = "failed"
+        rows[0].attempts = 1
+        rows[0].error_message = "Error 1"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        rows[1].status = "failed"
+        rows[1].attempts = 1
+        rows[1].error_message = "Error 2"
+        rows[1].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        j = session.get(Job, job.id)
+        j.status = "failed"
+        session.commit()
+
+    # Mock the Worker to verify it's called
+    with patch("api.routes.Worker") as mock_worker_class:
+        mock_worker = MagicMock()
+        mock_worker_class.return_value = mock_worker
+
+        response = client.post(f"/api/jobs/{job_id}/retry-failed")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retried_count"] == 2
+
+        # Verify Worker was instantiated and run_job was scheduled
+        mock_worker_class.assert_called_once()
+        # BackgroundTasks adds the task, but we can't easily verify the exact call
+        # The important thing is the endpoint doesn't crash and returns correct response
+
+    # Verify rows were requeued to pending
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id).order_by(JobRow.row_number)
+        ).scalars().all()
+        assert rows[0].status == "pending"
+        assert rows[1].status == "pending"
+
+    print("test_retry_failed_rows_launches_worker passed")
+
+
+def test_retry_failed_rows_zero_failed_no_worker():
+    """Test that retry-failed does NOT launch worker when no failed rows."""
+    from database import repositories
+    from database.connection import SessionLocal
+    from database.models import Job, JobRow
+    from models.input_models import InputRecord
+    from services.job_service import create_job
+    from api.app import app
+    from fastapi.testclient import TestClient
+    from unittest.mock import patch
+
+    client = TestClient(app)
+
+    # Create a job with all rows completed
+    records = [
+        InputRecord(row_number=1, data={"product_name": "Product 1"}),
+    ]
+    job = create_job(
+        input_filename="test_retry_no_worker.csv",
+        input_format="csv",
+        input_file_path="/tmp/test_retry_no_worker.csv",
+        rows=records,
+    )
+    job_id = str(job.id)
+
+    # Set row completed
+    with SessionLocal() as session:
+        rows = session.execute(
+            __import__("sqlalchemy").select(JobRow).where(JobRow.job_id == job.id)
+        ).scalars().all()
+
+        rows[0].status = "completed"
+        rows[0].completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+        j = session.get(Job, job.id)
+        j.status = "completed"
+        session.commit()
+
+    # Mock the Worker to verify it's NOT called
+    with patch("api.routes.Worker") as mock_worker_class:
+        response = client.post(f"/api/jobs/{job_id}/retry-failed")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retried_count"] == 0
+
+        # Worker should NOT be instantiated
+        mock_worker_class.assert_not_called()
+
+    print("test_retry_failed_rows_zero_failed_no_worker passed")
 
 
 if __name__ == "__main__":
