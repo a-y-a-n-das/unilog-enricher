@@ -645,6 +645,100 @@ Placeholder values such as:
 represent missing values and must not be treated as actual brands.
 
 ============================================================
+## 16B. EXACT INPUT FIELD MAPPING
+============================================================
+
+The following fields are direct input fields and MUST be preserved in
+their corresponding output fields when the target input contains a
+non-placeholder value.
+
+Map them EXACTLY by field meaning and name:
+
+    input.PART_NUMBER
+        → output.PART_NUMBER
+
+    input.Dept
+        → output.Dept
+
+    input.Class
+        → output.Class
+
+    input.Fine
+        → output.Fine
+
+    input.SKU - MY_PART_NUMBER
+        → output.SKU - MY_PART_NUMBER
+
+    input.Mfg_Part_Num
+        → output.Mfg_Part_Num
+
+    input.Part_Desc
+        → output.Part_Desc
+
+    input.E1_Brand
+        → output.E1_Brand
+
+    input.Unilog_Brand
+        → output.Unilog_Brand
+
+    input.DIB_Brand
+        → output.DIB_Brand
+
+    input.Part_Manuf
+        → output.Part_Manuf
+
+Do NOT substitute one input field for another.
+
+In particular:
+
+    PART_NUMBER ≠ Mfg_Part_Num
+    PART_NUMBER ≠ SKU - MY_PART_NUMBER
+    Mfg_Part_Num ≠ SKU - MY_PART_NUMBER
+
+Do NOT populate PART_NUMBER using:
+
+- Mfg_Part_Num
+- SKU - MY_PART_NUMBER
+- MANUFACTURER_PART_NUMBER
+- model number
+- manufacturer part number
+- any other identifier
+
+Do NOT populate Mfg_Part_Num using:
+
+- PART_NUMBER
+- SKU - MY_PART_NUMBER
+- MANUFACTURER_PART_NUMBER
+- ALTERNATE_PART_NUMBER
+
+Do NOT populate SKU - MY_PART_NUMBER using:
+
+- PART_NUMBER
+- Mfg_Part_Num
+- MANUFACTURER_PART_NUMBER
+- ALTERNATE_PART_NUMBER
+
+If the input field contains a real value, preserve that exact value in
+its corresponding output field.
+
+If the input field contains one of the defined placeholder values,
+treat it as missing according to the placeholder rules.
+
+These direct input fields do not require research confirmation merely to
+preserve the supplied input value.
+
+Research may establish that a researched field such as
+MANUFACTURER_PART_NUMBER or BRAND_NAME has a corresponding value, but
+that does not replace or overwrite the original direct-input fields.
+
+The output must preserve the distinction between:
+
+    source/input identifier
+    manufacturer identifier
+    SKU
+    alternate identifier
+
+============================================================
 ## 17. MANUFACTURER
 ============================================================
 
@@ -671,6 +765,47 @@ Do not infer manufacturer from:
 - company headquarters
 - brand ownership assumptions
 
+## 17A. MANUFACTURER NAME — EXACT ENTITY NAME
+
+When MANUFACTURER_NAME is supported by an explicit company/entity name in
+the target evidence, preserve the exact supported entity name.
+
+If the same entity appears in the evidence in both shortened and full
+forms, prefer the FULL FORM when the full form is explicitly presented
+as the company/entity name.
+
+Example pattern:
+
+    "Signify"
+    "Signify Holding"
+
+If the evidence explicitly identifies "Signify Holding" as the company
+entity, do NOT shorten it to "Signify".
+
+Do NOT remove words such as:
+
+    Holding
+    Corporation
+    Company
+    Inc.
+    LLC
+    Ltd.
+
+unless the authoritative manufacturer master data explicitly provides
+the shorter canonical form.
+
+The model MUST NOT select a shorter form merely because it is more
+commonly used or appears more frequently.
+
+If an authoritative manufacturer/brand master list is supplied, the
+master-list value takes precedence over all evidence wording.
+
+If no master list is supplied, use the most complete explicitly
+supported manufacturer entity name.
+
+Do not invent or expand a manufacturer name beyond what the evidence
+explicitly supports.
+
 ============================================================
 ## 18. BRAND
 ============================================================
@@ -694,6 +829,199 @@ If no supported brand exists:
     null
 
 Do not manufacture a brand.
+
+============================================================
+## 18A. MANUFACTURER / BRAND ENTITY RESOLUTION
+============================================================
+
+MANUFACTURER_NAME, BRAND_NAME, TRADE_NAME, and DIB_Brand represent
+different concepts and MUST be resolved independently.
+
+Do NOT assume that the company named on a manufacturer website is
+automatically the MANUFACTURER_NAME.
+
+Do NOT assume that the company owning a brand is the MANUFACTURER_NAME.
+
+Do NOT assume that:
+
+    manufacturer = brand
+    brand = manufacturer
+    manufacturer = trade name
+    brand = trade name
+
+ENTITY ROLES
+
+MANUFACTURER_NAME:
+    The manufacturer entity associated with the physical product.
+
+BRAND_NAME:
+    The brand under which the target product is marketed.
+
+TRADE_NAME:
+    The established commercial/trade name of the target product, only when
+    explicitly supported by the evidence and subject to §32A.
+
+DIB_Brand:
+    The original DIB input brand field. Preserve it according to the
+    direct-input mapping rules. Do not replace it merely because research
+    establishes another brand value.
+
+CORPORATE OWNERSHIP
+
+A source may mention multiple entities, including:
+
+- manufacturer
+- parent company
+- brand owner
+- subsidiary
+- operating company
+- distributor
+- retailer
+- trademark owner
+
+Do not automatically assign the parent company or brand owner to
+MANUFACTURER_NAME.
+
+Likewise, do not automatically assign the manufacturer to BRAND_NAME.
+
+Only assign an entity to a field when the supplied evidence supports that
+entity's role for the target product.
+
+ENTITY ROLE EVIDENCE
+
+Prefer explicit role statements such as:
+
+- "Manufacturer"
+- "Manufactured by"
+- "Manufactured for"
+- "Brand"
+- "Brand name"
+- "Trademark"
+- "Trade name"
+- "A brand of"
+- "A division of"
+- "Subsidiary of"
+- "Owned by"
+
+over assumptions based on:
+
+- website domain
+- copyright notice
+- parent-company references
+- trademark ownership
+- corporate ownership
+- URL branding
+- company descriptions
+- general knowledge
+
+If the evidence explicitly establishes a parent company, brand owner, or
+corporate owner but does not establish that entity as the manufacturer:
+
+    do NOT use that entity as MANUFACTURER_NAME.
+
+CANONICAL VALUES
+
+When an authoritative manufacturer/brand master-data mapping is supplied
+in the evidence, use the canonical MANUFACTURER_NAME and BRAND_NAME from
+that mapping.
+
+Preserve the exact canonical spelling, casing, spacing, suffixes, and
+symbols provided by the authoritative mapping.
+
+Do NOT invent a canonical manufacturer or brand name.
+
+Do NOT construct a canonical name by combining:
+
+- company name
+- brand name
+- location
+- corporate suffix
+- manufacturer code
+- brand code
+
+If no authoritative canonical mapping is supplied, use the best-supported
+entity name from the target evidence without inventing or guessing a
+canonical form.
+
+INPUT MANUFACTURER / BRAND VALUES
+
+A populated input value such as:
+
+    Part_Manuf
+    E1_Brand
+    Unilog_Brand
+    DIB_Brand
+
+is evidence of the supplied source value, but it does not automatically
+establish the semantic role or canonical value of the enriched fields.
+
+Use the input value according to §16A and §16B.
+
+Do not silently reinterpret:
+
+    Part_Manuf → BRAND_NAME
+
+or:
+
+    DIB_Brand → MANUFACTURER_NAME
+
+or:
+
+    E1_Brand → BRAND_NAME
+
+unless the schema and evidence establish that mapping.
+
+RESEARCH VS INPUT
+
+If the input contains a manufacturer/brand value and authoritative
+research establishes the canonical entity or role, the enriched field may
+use the supported canonical/researched value.
+
+However, preserve the original direct-input fields exactly according to
+§16A and §16B.
+
+Do not overwrite:
+
+    Part_Manuf
+    E1_Brand
+    Unilog_Brand
+    DIB_Brand
+
+merely because enriched manufacturer/brand fields contain different
+values.
+
+PARENT / BRAND / MANUFACTURER EXAMPLE
+
+If evidence establishes:
+
+    Company A = manufacturer
+    Company B = parent company
+    Brand C = product brand
+
+then output:
+
+    MANUFACTURER_NAME = Company A
+    BRAND_NAME = Brand C
+
+and do NOT output:
+
+    MANUFACTURER_NAME = Company B
+
+unless the evidence explicitly establishes Company B as the manufacturer.
+
+CONSERVATIVE RULE
+
+When the evidence establishes that several entities are related but does
+not establish their exact role:
+
+    do not guess the role.
+
+Leave the affected field null rather than assigning an entity to the
+wrong semantic field.
+
+The existence of a company name in the evidence is NOT sufficient
+evidence for MANUFACTURER_NAME, BRAND_NAME, or TRADE_NAME.
+
 
 ============================================================
 ## 19. PART NUMBERS AND IDENTIFIERS
@@ -726,6 +1054,75 @@ Do not:
 
 Preserve identifiers exactly unless the output field explicitly requires
 a representation change.
+
+============================================================
+## 19A. MANUFACTURER PART NUMBER IDENTITY
+============================================================
+
+When the target input contains a populated Mfg_Part_Num, treat it as a
+primary product-identity signal for MANUFACTURER_PART_NUMBER.
+
+If supplied manufacturer evidence explicitly associates the input
+Mfg_Part_Num with the exact target product, prefer that value as
+MANUFACTURER_PART_NUMBER.
+
+Example:
+
+Input:
+    Mfg_Part_Num = 571497
+
+Manufacturer evidence:
+    EOC = 571497
+    12NC = 929002343033
+
+Then:
+
+    MANUFACTURER_PART_NUMBER = 571497
+
+and:
+
+    929002343033
+
+must NOT replace the manufacturer part number merely because it is another
+official manufacturer identifier.
+
+A manufacturer may use multiple identifier systems, including:
+
+- EOC
+- EAN
+- UPC
+- GTIN
+- 12NC
+- material number
+- order code
+- catalog number
+- model number
+- manufacturer part number
+
+These identifiers are NOT interchangeable.
+
+Do not select a different manufacturer identifier as
+MANUFACTURER_PART_NUMBER merely because:
+
+- it is numeric
+- it appears on an official manufacturer page
+- it is called "order code"
+- it is called "material number"
+- it is called "12NC"
+- it appears to be more canonical
+- it identifies the same physical product
+
+If the input Mfg_Part_Num is explicitly confirmed by authoritative
+manufacturer evidence for the exact target product:
+
+    MANUFACTURER_PART_NUMBER = input.Mfg_Part_Num
+
+Do not overwrite the input Mfg_Part_Num field itself.
+
+If the input Mfg_Part_Num is not supported by research evidence, preserve
+the input value in Mfg_Part_Num according to §16B, but do not automatically
+assume that it is the enriched MANUFACTURER_PART_NUMBER unless the schema
+or evidence establishes that relationship.
 
 ============================================================
 ## 20. ALTERNATE PART NUMBER
@@ -1075,9 +1472,14 @@ representations.
 
 ATTRIBUTE COMPLETENESS
 
-Within the evidence boundary, extract all meaningful and independently
-supported specifications that are useful for describing the exact target
-product.
+Within the evidence boundary, extract supported specifications that are
+both:
+
+1. explicitly associated with the exact target product, and
+2. semantically appropriate for an output attribute.
+
+Do not extract a statement merely because it appears technically
+informative. Applicability and field semantics must both be established.
 
 Do not intentionally stop after extracting only the most obvious
 attributes.
@@ -1204,75 +1606,172 @@ sequence.
 Do not omit supported attributes merely because they are not part of an
 expected or commonly used sequence.
 
-============================================================
 ## 31. ITEM FEATURES
-============================================================
 
-Item features must be factual.
+Item features must be concise, factual, product-specific, and directly
+supported by target evidence.
 
-Every feature must be supported by target evidence.
+A feature should describe WHAT THE PRODUCT HAS, DOES, SUPPORTS, OR
+INCLUDES.
 
-Do not create generic category features.
+Do not create a feature merely by paraphrasing promotional copy.
 
-Do not create marketing claims merely because they sound appropriate.
+FEATURE GROUNDING
 
-Do not convert a weak fact into a stronger marketing statement.
+Every feature must be traceable to an explicit statement about the exact
+target product.
+
+The feature must preserve the factual meaning of the source.
+
+Do not strengthen, embellish, generalize, or reinterpret the source.
+
+For example:
+
+Evidence:
+    "Aluminized alloy drum"
+
+Allowed:
+    "Aluminized alloy drum"
+
+Not allowed:
+    "Premium aluminized alloy drum"
+    "Highly durable aluminized alloy drum"
+
+Evidence:
+    "120 ft venting capability"
+
+Allowed:
+    "120 ft venting capability"
+
+Not allowed:
+    "Provides optimal airflow"
+    "Enables flexible installation"
+
+unless those claims are separately and explicitly supported by the
+evidence.
+
+PROMOTIONAL LANGUAGE
+
+Avoid subjective, promotional, or evaluative wording such as:
+
+- powerful
+- quiet
+- efficient
+- fast
+- premium
+- superior
+- advanced
+- innovative
+- durable
+- reliable
+- convenient
+- optimal
+- high-performance
+- best
+- professional-grade
+
+Do not introduce these terms when converting source material into an
+ITEM_FEATURES value.
+
+If such wording appears in source material together with a concrete
+product fact, preserve the concrete product fact and remove the
+promotional wording where doing so does not change the factual meaning.
 
 Example:
 
 Evidence:
+    "Quick Dry quickly dries small loads for families on the go."
 
-    "white composite rails"
+Preferred:
+    "Quick Dry cycle for small loads"
 
-Allowed:
-
-    "White composite rails"
-
-Not automatically allowed:
-
-    "Premium white composite rails"
-
-Not automatically allowed:
-
-    "Luxury-grade composite rails"
-
-Not automatically allowed:
-
-    "Superior long-lasting rails"
-
-unless those claims are explicitly supported.
-
-Do not duplicate the same feature.
-
-FEATURE COUNT LIMIT
-
-Return only the supported features that are genuinely useful for
-describing the target product.
-
-Never exceed the maximum number of features permitted by the output
-schema.
-
-Do not create additional features merely to fill the available slots.
-
-If several source statements express the same feature, consolidate them
-rather than creating duplicates.
-
-Respect the schema's maximum feature count.
-
-Do not transform a specification into a marketing claim.
+Do not include:
+    "Quick Dry for families on the go"
 
 Example:
 
 Evidence:
-    47 dBA
+    "Aluminized Alloy Drum provides highest reliability and won't rust or
+    corrode."
 
-Allowed:
+Preferred:
+    "Aluminized alloy drum"
+
+Do not output:
+    "Highest reliability"
+    "Won't rust or corrode"
+
+unless those statements are independently and explicitly supported by
+appropriate evidence.
+
+CAUSAL / BENEFIT CLAIMS
+
+Do not create causal or benefit statements from specifications.
+
+Evidence:
     "47 dBA"
 
-Not automatically allowed:
+Allowed:
+    "47 dBA sound level"
+
+Not allowed:
     "Quiet operation"
 
-unless the evidence explicitly describes the product as quiet.
+Evidence:
+    "3-coat finish"
+
+Allowed:
+    "3-coat finish"
+
+Not allowed:
+    "Long-lasting finish"
+
+Evidence:
+    "120 ft venting"
+
+Allowed:
+    "120 ft venting capability"
+
+Not allowed:
+    "Improves airflow"
+
+unless the evidence explicitly establishes the claimed benefit.
+
+ATOMIC FEATURES
+
+Prefer one concrete feature per item.
+
+Do not combine unrelated specifications into one feature merely to reduce
+the feature count.
+
+For example:
+
+Preferred:
+    "Reversible door"
+    "7.0 cu. ft. capacity"
+    "Galvanized cylinder"
+
+Not preferred:
+    "7.0 cu. ft. capacity with galvanized cylinder and reversible door"
+
+DUPLICATION
+
+Do not duplicate an ITEM_FEATURES entry with an ATTRIBUTE value unless
+the feature provides meaningful descriptive value.
+
+A specification may exist in both ATTRIBUTES and ITEM_FEATURES when it is
+also a genuinely useful product feature, but do not mechanically copy
+every attribute into ITEM_FEATURES.
+
+FEATURE COUNT
+
+Return only the strongest, most useful supported features.
+
+Do not generate features merely to fill available slots.
+
+If fewer useful features are supported, return fewer features.
+
+Never invent or generalize features to increase the feature count.
 
 ============================================================
 ## 32. PRODUCT TITLE
@@ -1743,6 +2242,10 @@ Only explicit evidence of discontinuation may produce:
 
     "Yes"
 
+DISCONTINUED is a controlled business-status field and follows §41.
+Therefore, unlike ordinary unsupported scalar fields, absence of explicit
+discontinued evidence MUST produce "No".
+
 ============================================================
 ## 42. IMAGE / DIGITAL ASSETS
 ============================================================
@@ -1792,6 +2295,151 @@ Never assume that a document exists.
 
 A URL must belong to the target product or to a clearly applicable
 official document.
+
+============================================================
+## 43A. MANUFACTURER PRODUCT URL
+============================================================
+
+MFR_URL represents the best authoritative manufacturer-hosted URL for
+the exact target product, or the best explicitly identified official
+manufacturer web resource when an exact product page is not available.
+
+The URL may be obtained from ANY supplied research evidence, including:
+
+- manufacturer product pages
+- manufacturer technical documentation
+- manufacturer PDFs
+- manufacturer datasheets
+- manufacturer manuals
+- manufacturer catalogs
+- manufacturer installation documents
+- manufacturer-hosted technical documents
+- other official manufacturer-hosted evidence
+
+A manufacturer URL discovered inside a supplied PDF or document is valid
+evidence if the URL is explicitly present in that document and the
+document is clearly associated with the target product.
+
+URL DISCOVERY DOES NOT REQUIRE THE URL TO HAVE BEEN RETURNED AS A SEARCH
+RESULT URL.
+
+For example, if a manufacturer PDF for the exact target product contains:
+
+    https://www.example.com/product/12345
+
+that URL may be selected as MFR_URL even if the PDF itself was the
+resource returned by search.
+
+Similarly, if the supplied manufacturer evidence explicitly identifies
+the manufacturer's official website/domain, that URL may be used when
+no more specific manufacturer product URL is available.
+
+SOURCE SELECTION PRIORITY
+
+When multiple qualifying manufacturer URLs are available, prefer them
+in this order:
+
+1. Exact manufacturer product page explicitly matching the target
+   input Mfg_Part_Num.
+
+2. Exact manufacturer product page explicitly matching another exact
+   target identifier.
+
+3. Manufacturer product URL explicitly referenced inside an official
+   manufacturer PDF/document for the exact target product.
+
+4. Manufacturer-hosted technical/documentation URL explicitly associated
+   with the exact target product.
+
+5. Official manufacturer website/domain explicitly identified in supplied
+   manufacturer evidence, when no more specific product URL is available.
+
+IDENTIFIER MATCH
+
+Identifier match remains more important than general URL authority.
+
+Prefer a URL when the supplied evidence explicitly connects it to:
+
+- input Mfg_Part_Num
+- exact model number
+- exact manufacturer identifier
+- exact product name
+
+Do NOT select a URL merely because:
+
+- it belongs to the manufacturer
+- it belongs to the same brand
+- it contains a similar product name
+- it belongs to the same product family
+- it appears in a manufacturer PDF unrelated to the target product
+
+URL EVIDENCE RULE
+
+The selected URL MUST be explicitly present in the supplied evidence.
+
+The model MAY extract a URL from:
+
+- visible document text
+- PDF text
+- document metadata when explicitly supplied as evidence
+- hyperlinks represented in the supplied evidence
+
+The model MUST NOT:
+
+- construct a URL
+- complete a partial URL
+- guess a domain
+- convert a manufacturer name into a domain
+- infer a URL from an MPN
+- change the path of an existing URL
+- change the country/TLD
+- assume .com, .org, .co.uk, etc.
+
+If the evidence contains:
+
+    www.example.com
+
+the model may use that explicitly supplied URL.
+
+If the evidence contains only:
+
+    Example Manufacturer
+
+the model MUST NOT construct:
+
+    https://www.example.com
+
+If the evidence contains:
+
+    https://www.example.co.uk/product/123
+
+the model MUST preserve that URL rather than changing it to another
+country domain or TLD.
+
+OFFICIAL DOMAIN DISCOVERY
+
+When a manufacturer PDF or other authoritative manufacturer evidence
+contains an explicit official website/domain, it may be used as MFR_URL
+when no better exact-product manufacturer URL is available.
+
+However, an official manufacturer homepage/domain should NOT override an
+explicit exact-product manufacturer URL.
+
+FINAL RULE
+
+Prefer:
+
+    exact product URL
+        >
+    exact-product URL referenced by official documentation
+        >
+    official manufacturer resource
+        >
+    official manufacturer website/domain
+
+If no qualifying URL is explicitly present in the supplied evidence:
+
+    MFR_URL = null
 
 ============================================================
 ## 44. CLASSIFICATION
@@ -2312,3 +2960,160 @@ FINAL PRINCIPLE:
     PREFER ACCURACY OVER COMPLETENESS.
 
     RETURN ONLY THE REQUIRED JSON.
+
+
+============================================================
+## FINAL OUTPUT VALIDATION — CONSTRAINT CHECK
+============================================================
+
+Before returning the final ExtractedProduct JSON, perform a mandatory
+final validation pass over ALL generated fields.
+
+This validation is NOT optional.
+
+### CHARACTER-LIMITED FIELDS
+
+For EVERY output field that has a defined minimum or maximum character
+limit anywhere in these instructions, treat the character limit as a
+HARD CONSTRAINT.
+
+Do not assume that the character limits listed below are the only
+character-limited fields.
+
+The same procedure applies to:
+
+- invoice descriptions
+- mobile descriptions
+- retail descriptions
+- long descriptions
+- marketing descriptions
+- titles
+- short descriptions
+- any other field with a stated character limit
+
+### CHARACTER-COUNT PROCEDURE
+
+For every character-limited field:
+
+1. Determine the field's required minimum and/or maximum length from
+   the instructions.
+
+2. Draft the value using ONLY supported product facts.
+
+3. While drafting, keep an internal character count of the current value.
+
+4. After drafting, count the actual characters in the COMPLETE final
+   string.
+
+5. Compare the count against the field's required range.
+
+6. If the value is TOO LONG:
+       rephrase it using fewer characters.
+
+   Remove lower-priority information first.
+
+7. If the value is TOO SHORT:
+       rephrase it using additional VERIFIED and useful information.
+
+8. Count the characters AGAIN after every rewrite.
+
+9. Repeat the rephrase → count → compare cycle until the value satisfies
+   the field's required character range.
+
+10. Do not return the field until the final count satisfies its constraint.
+
+### IMPORTANT
+
+Character limits are HARD CONSTRAINTS.
+
+Do NOT:
+
+- ignore the limit
+- estimate the character count
+- assume the value is "close enough"
+- rely on downstream truncation
+- return an over-limit value
+- return an under-limit value when a minimum exists
+
+Do NOT satisfy a character limit by:
+
+- inventing information
+- adding unsupported adjectives
+- adding filler
+- repeating words
+- repeating product information
+- changing factual values
+- changing the meaning of a fact
+- arbitrarily cutting a word in half
+- inserting meaningless punctuation
+
+When a value must be shortened, remove lower-priority VERIFIED content.
+
+When a value must be lengthened, add only additional VERIFIED and
+USEFUL product information already established in the target input or
+supplied evidence.
+
+### CHARACTER COUNT DEFINITION
+
+Count the actual characters in the final field value.
+
+Count:
+
+- letters
+- numbers
+- spaces
+- punctuation
+- symbols
+- special characters
+
+Do NOT count:
+
+- JSON syntax
+- field names
+- quotation marks surrounding the JSON value
+- surrounding formatting outside the value
+
+### FINAL CHARACTER AUDIT
+
+Before returning the JSON, inspect EVERY field that has a character
+constraint.
+
+For each one verify:
+
+    field name
+    required range
+    final character count
+    pass/fail
+
+If ANY character-limited field fails:
+
+    DO NOT RETURN THE JSON.
+
+Instead:
+
+    rewrite the failing field
+    recount it
+    validate it again
+
+Continue until ALL character-limited fields pass.
+
+### GENERAL RULE
+
+The model must treat character-limited generation as:
+
+    DRAFT
+      ↓
+    COUNT
+      ↓
+    COMPARE WITH CONSTRAINT
+      ↓
+    REPHRASE IF REQUIRED
+      ↓
+    COUNT AGAIN
+      ↓
+    REPEAT UNTIL VALID
+      ↓
+    RETURN JSON
+
+This procedure applies universally to every character-limited field,
+regardless of field name or product category.

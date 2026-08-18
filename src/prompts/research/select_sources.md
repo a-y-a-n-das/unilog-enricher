@@ -300,6 +300,49 @@ should remain separate.
 The selector must reason about DOCUMENT IDENTITY and DOCUMENT TYPE, not
 only URL, filename, language, or product number.
 
+## OFFICIAL PRODUCT PAGE VS OFFICIAL CATALOG PAGE
+
+Do NOT treat two manufacturer-authoritative product pages as duplicates
+merely because they describe the same product.
+
+When multiple official sources describe the same exact product but are
+hosted on different official manufacturer/brand properties, they may
+provide different evidence and should remain independently selectable.
+
+In particular, distinguish between:
+
+1. Brand-specific official product page
+2. Manufacturer corporate/catalog product page
+3. Manufacturer technical documentation
+
+A brand-specific official product page should NOT be rejected as
+redundant merely because a manufacturer catalog page describes the same
+product.
+
+When both are available for the exact product:
+
+    prefer retaining BOTH
+
+provided they are genuinely authoritative and provide useful information.
+
+The brand-specific product page is especially valuable for:
+
+- MFR_URL
+- brand identity
+- product presentation
+- product images
+- brand-specific product information
+
+The manufacturer/catalog page is especially valuable for:
+
+- technical specifications
+- manufacturer product identifiers
+- technical product metadata
+- manufacturer documentation links
+
+Do not reduce multiple authoritative exact-product sources to one solely
+because they describe the same physical product.
+
 ## DISCOVERED RESOURCE SELECTION
 
 When an already-selected official manufacturer page exposes additional
