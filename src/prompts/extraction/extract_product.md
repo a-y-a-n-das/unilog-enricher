@@ -2377,6 +2377,17 @@ Similarly, if the supplied manufacturer evidence explicitly identifies
 the manufacturer's official website/domain, that URL may be used when
 no more specific manufacturer product URL is available.
 
+### Brand-Official Pages Count as Manufacturer URLs
+
+When the target product has an explicitly identified BRAND (from input
+or evidence), and a brand-official domain exists in the evidence
+(e.g., diablotools.com for Diablo), that brand's official product page
+for the exact target product QUALIFIES as MFR_URL.
+
+Do NOT reject a brand-official URL merely because the domain differs
+from the corporate manufacturer's domain. The brand IS the manufacturer
+for that brand's products.
+
 SOURCE SELECTION PRIORITY
 
 When multiple qualifying manufacturer URLs are available, prefer them
@@ -2394,6 +2405,9 @@ in this order:
 4. Manufacturer-hosted technical/documentation URL explicitly associated
    with the exact target product.
 
+5. Brand-official product page explicitly matching the target product
+   (when brand is explicitly identified in input/evidence).
+
 Do NOT use a generic manufacturer homepage/domain as MFR_URL.
 Do NOT use a distributor/retailer URL as MFR_URL merely because it is
 the best available product source.
@@ -2402,6 +2416,16 @@ Do NOT construct or guess URLs.
 If no qualifying URL is explicitly present in the supplied evidence:
 
     MFR_URL = null
+
+### MFR_URL Discovery Checklist
+
+When searching evidence for MFR_URL candidates, check:
+
+- PDF metadata (producer, creator, embedded URLs)
+- Footer/header links in manufacturer PDFs ("Visit us at:", "For more information:")
+- Product page canonical URLs in HTML meta tags
+- Manufacturer datasheet reference URLs
+- Brand domain product pages (when brand is explicitly identified)
 
 ============================================================
 ## 44. CLASSIFICATION

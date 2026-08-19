@@ -143,6 +143,16 @@ results.
 
 Do not guess or construct a manufacturer domain.
 
+### When Manufacturer Domain Is Unknown
+
+If the input provides a BRAND name (e.g., E1_Brand, Unilog_Brand, DIB_Brand)
+but the manufacturer's corporate domain is not explicitly known:
+
+- Use the BRAND name + exact MPN/model number + official intent phrase
+- Brands often maintain their own official product pages (e.g., diablotools.com for Diablo)
+- The brand's official page IS a manufacturer/official source for that brand's products
+- Do NOT substitute a guessed corporate manufacturer domain for the brand domain
+
 ## EXACT PRODUCT DISCOVERY — MULTIPLE KNOWN IDENTIFIERS
 
 When multiple strong identifiers are available, Query 1 MUST combine
@@ -156,106 +166,87 @@ For example:
 Do not rely only on the raw Part_Desc when it contains abbreviations,
 inconsistent casing, or shorthand.
 
-## Query 3 — Technical Specifications
+## Query 3 — Technical Specifications (HTML / Web Spec Pages)
 
-Generate one concise query specifically targeting detailed technical specifications for the exact product.
+Generate one concise query specifically targeting detailed technical specifications for the exact product on manufacturer/brand web pages.
 
-Use the exact MPN/model number together with ONE appropriate technical term.
+Target: **HTML product pages with specification tables, feature lists, technical data sections**.
+
+Use the exact MPN/model number together with ONE specification-oriented term.
 
 When manufacturer/brand and MPN/model number are both available, the
 query MUST include the manufacturer or brand together with the exact
 MPN/model number.
 
-specifications
-
-technical specifications
-
-product specifications
+Preferred terms (choose ONE):
+- technical specifications
+- product specifications
+- specifications
+- specs
+- features
 
 Examples:
-
-"MPN" specifications
-
-"Model Number" technical specifications
-
+"Brand" "MPN" technical specifications
 "MPN" product specifications
 
 Do not make this a generic category search.
+Do not use documentation/file terms (datasheet, PDF, manual) — those are Query 4/5.
 
-## Query 4 — Technical Documentation
+## Query 4 — Technical Documentation (PDF / Downloadable Documents)
 
-Generate one concise query designed to locate manufacturer-authored technical documentation for the exact product.
+Generate one concise query designed to locate manufacturer-authored downloadable technical documents for the exact product.
 
-Use the exact MPN/model number together with ONE appropriate documentation term.
+Target: **PDF files — datasheets, catalog pages, specification sheets, technical bulletins**.
+
+Use the exact MPN/model number together with ONE document-oriented term.
 
 When manufacturer/brand and MPN/model number are both available, the
 query MUST include the manufacturer or brand together with the exact
 MPN/model number.
 
-datasheet
-
-PDF
-
-technical document
-
-specification sheet
-
-catalog
+Preferred terms (choose ONE):
+- datasheet
+- PDF
+- specification sheet
+- catalog
+- technical bulletin
+- data sheet
 
 Examples:
-
-"MPN" datasheet
-
+"Brand" "MPN" datasheet
 "MPN" PDF
-
-"MPN" specification sheet
+"Brand" "MPN" specification sheet
 
 Choose only one documentation term.
+Do not combine multiple documentation terms.
+Do not use specification terms (specifications, specs, features) — those are Query 3.
 
-Do not combine multiple documentation terms into this query.
+## Query 5 — Manual / Installation / Dimensions (Procedural / Dimensional Docs)
 
-## Query 5 — Manual / Installation / Dimensions
+Generate one concise query designed to locate product documentation containing detailed procedural or dimensional information for the exact product.
 
-Generate one concise query designed to locate useful product
-documentation containing detailed information such as dimensions,
-installation requirements, operating information, mounting information,
-or other product-specific technical details.
+Target: **Installation manuals, mounting guides, dimensional drawings, CAD files, owner's manuals**.
 
-Use the exact MPN/model number together with ONE appropriate
-documentation term.
+Use the exact MPN/model number together with ONE appropriate term based on product type.
 
 When manufacturer/brand and MPN/model number are both available, the
 query MUST include the manufacturer or brand together with the exact
 MPN/model number.
 
-Choose ONE term based on the apparent product type and the information
-most likely to be useful:
+Choose ONE term based on the apparent product type:
 
-manual
-installation
-dimensions
-installation manual
-owner's manual
-operation manual
+- installation manual / installation guide — for products requiring assembly/mounting (railings, fixtures, hardware)
+- dimensions / dimensional drawing / CAD — for products where exact measurements are critical (pipe, tubing, structural)
+- manual / owner's manual / operation manual — for powered equipment, appliances, electronics
+- service manual / maintenance manual — for serviceable equipment
+- mounting guide / mounting instructions — for wall/ceiling/floor mounted products
 
 Examples:
-
-"MPN" manual
-
-"MPN" installation
-
+"Brand" "MPN" installation manual
 "MPN" dimensions
+"Brand" "MPN" mounting guide
 
-"MPN" installation manual
-
-Choose the term most appropriate to the product.
-
-Do not combine multiple documentation terms into this query.
-
-Do not use generic category searches.
-
-Do not invent product characteristics when choosing the documentation
-term.
+Do not use specification terms (Query 3) or general document terms (Query 4).
 
 ## Manufacturer Sources
 

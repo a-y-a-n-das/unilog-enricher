@@ -104,6 +104,16 @@ Do NOT reject an official brand property merely because its domain differs from 
 
 Brand ownership must still be established from the available evidence. Do not assume a domain is official solely because the manufacturer or brand name appears in the URL.
 
+### Brand-Official Pages
+
+When the input record explicitly identifies a BRAND (e.g., E1_Brand, Unilog_Brand, DIB_Brand) and a source is on a domain clearly controlled by that brand (e.g., diablotools.com for Diablo, milwaukeetool.com for Milwaukee), classify it as `official` authority if:
+
+- The brand is explicitly present in the input record
+- The page describes the exact target product (matching MPN/model number)
+- The domain is reasonably attributable to the brand
+
+A brand's official product page IS a manufacturer/official source for that brand's products. Do NOT downgrade to `secondary` merely because the domain differs from the corporate parent manufacturer's domain.
+
 ### Manufacturer Documents
 
 Use `manufacturer_document` for manufacturer-authored technical documentation.
