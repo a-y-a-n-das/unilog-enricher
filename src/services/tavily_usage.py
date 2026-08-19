@@ -1,11 +1,10 @@
 """Tavily usage tracking service for research capacity estimation."""
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Lock
 
 from pipeline.llm.config import get_tavily_monthly_credits
-from pipeline.research.search import SearchUsage
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,30 +13,22 @@ LOGGER = logging.getLogger(__name__)
 class TavilyUsageSummary:
     """Summary of Tavily usage for capacity estimation."""
 
-    credits_used_this_session: int = 0
-    credits_remaining: int | None = None
+    rows_processed_this_session: int = 0
     estimated_credits_per_row: int = 10
     monthly_credit_limit: int = 1000
 
     @property
-    def estimated_rows_remaining(self) -> int | None:
-        """Estimate rows remaining based on remaining credits.
-
-        Returns None if remaining credits cannot be determined.
-        """
-        if self.credits_remaining is None:
-            return None
-        if self.estimated_credits_per_row <= 0:
-            return None
-        return max(0, self.credits_remaining // self.estimated_credits_per_row)
-
-    @property
-    def estimated_rows_from_limit(self) -> int:
-        """Estimate rows remaining based on monthly limit minus session usage."""
-        remaining_from_limit = max(0, self.monthly_credit_limit - self.credits_used_this_session)
+    def max_rows_per_month(self) -> int:
+        """Maximum rows possible per month based on credit limit."""
         if self.estimated_credits_per_row <= 0:
             return 0
-        return max(0, remaining_from_limit // self.estimated_credits_per_row)
+        return max(0, self.monthly_credit_limit // self.estimated_credits_per_row)
+
+    @property
+    def estimated_rows_remaining(self) -> int:
+        """Estimate rows remaining based on rows processed this session."""
+        max_rows = self.max_rows_per_month
+        return max(0, max_rows - self.rows_processed_this_session)
 
 
 class TavilyUsageTracker:
@@ -45,8 +36,7 @@ class TavilyUsageTracker:
 
     def __init__(self) -> None:
         self._lock = Lock()
-        self._credits_used_this_session = 0
-        self._credits_remaining: int | None = None
+        self._rows_processed_this_session = 0
         self._monthly_limit = 1000
         self._estimated_credits_per_row = 10
 
@@ -62,52 +52,44 @@ class TavilyUsageTracker:
             if estimated_credits_per_row is not None:
                 self._estimated_credits_per_row = estimated_credits_per_row
 
-    def record_usage(self, usage: SearchUsage) -> None:
-        """Record usage from a single Tavily search."""
+    def record_row_processed(self) -> None:
+        """Record that a row has been processed (successful or failed)."""
         with self._lock:
-            self._credits_used_this_session += usage.credits_used
-            if usage.credits_remaining is not None:
-                self._credits_remaining = usage.credits_remaining
+            self._rows_processed_this_session += 1
+
+    def record_rows_processed(self, count: int) -> None:
+        """Record multiple rows processed at once."""
+        with self._lock:
+            self._rows_processed_this_session += count
 
     def get_summary(self) -> dict:
         """Get a summary of current usage for API response."""
         with self._lock:
-            credits_used = self._credits_used_this_session
-            credits_remaining = self._credits_remaining
+            rows_processed = self._rows_processed_this_session
             monthly_limit = self._monthly_limit
             estimated_per_row = self._estimated_credits_per_row
 
-        # Determine best estimate for remaining credits
-        estimated_remaining = None
-        if credits_remaining is not None:
-            estimated_remaining = credits_remaining
-        elif monthly_limit > 0:
-            estimated_remaining = max(0, monthly_limit - self._credits_used_this_session)
-
-        estimated_rows = None
-        if estimated_remaining is not None and estimated_per_row > 0:
-            estimated_rows = max(0, estimated_remaining // estimated_per_row)
+        max_rows = max(0, monthly_limit // estimated_per_row) if estimated_per_row > 0 else 0
+        estimated_rows_remaining = max(0, max_rows - rows_processed)
 
         return {
             "tavily": {
-                "credits_used_this_session": credits_used,
-                "credits_remaining": estimated_remaining,
+                "rows_processed_this_session": rows_processed,
+                "estimated_rows_remaining": estimated_rows_remaining,
+                "max_rows_per_month": max_rows,
                 "estimated_credits_per_row": estimated_per_row,
-                "estimated_rows_remaining": estimated_rows,
                 "monthly_credit_limit": monthly_limit,
                 "note": (
-                    "Estimated values based on current session usage and configured "
-                    "monthly limit. Actual remaining credits may differ. This is an "
-                    "informational estimate only and does not block processing."
+                    "Row-based estimate: each row consumes ~10 credits (5 queries × 2 credits). "
+                    "This is an informational estimate only and does not block processing."
                 ),
             }
-    }
+        }
 
     def reset(self) -> None:
         """Reset the tracker (useful for testing)."""
         with self._lock:
-            self._credits_used_this_session = 0
-            self._credits_remaining = None
+            self._rows_processed_this_session = 0
 
 
 # Module-level singleton for cross-request access

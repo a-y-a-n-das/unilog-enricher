@@ -12,7 +12,6 @@ from pipeline.extraction.evidence import EvidenceBuilder
 from pipeline.extraction.extraction import ProductExtractor
 from pipeline.llm.factory import get_llm_client
 from pipeline.research.agent import ResearchAgent
-from pipeline.research.search import SearchUsage
 from services.tavily_usage import TavilyUsageTracker
 from pipeline.llm.config import get_tavily_monthly_credits
 
@@ -38,8 +37,6 @@ class ProcessingResult:
     record: InputRecord
     product: object
     timings: ProcessingTimings
-    tavily_credits_used: int = 0
-    tavily_credits_remaining: int | None = None
 
 
 class ProcessingService:
@@ -238,8 +235,8 @@ class ProcessingService:
             research_usage.credits_used,
         )
 
-        # Record Tavily usage for capacity estimation
-        self.tavily_usage_tracker.record_usage(research_usage)
+        # Record Tavily usage for capacity estimation (row-based counter)
+        self.tavily_usage_tracker.record_row_processed()
 
         # ---------------------------------------------------------
         # Evidence
@@ -316,6 +313,4 @@ class ProcessingService:
             record=record,
             product=extracted_product,
             timings=timings,
-            tavily_credits_used=research_usage.credits_used,
-            tavily_credits_remaining=research_usage.credits_remaining,
         )

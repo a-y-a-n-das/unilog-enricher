@@ -51,10 +51,10 @@ class RetryFailedResponse(BaseModel):
 
 
 class TavilyUsageResponse(BaseModel):
-    credits_used_this_session: int
-    credits_remaining: int | None = None
+    rows_processed_this_session: int
+    estimated_rows_remaining: int
+    max_rows_per_month: int
     estimated_credits_per_row: int
-    estimated_rows_remaining: int | None = None
     monthly_credit_limit: int
     note: str
 

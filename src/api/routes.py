@@ -279,15 +279,16 @@ async def download_job_output(job_id: str) -> FileResponse:
 async def get_tavily_usage(
     tracker=Depends(get_tavily_usage_tracker_dependency),
 ) -> TavilyUsageResponse:
-    """Get Tavily API usage and capacity estimation.
+    """Get Tavily API usage and capacity estimation (row-based).
 
-    This endpoint provides informational estimates of Tavily API credit usage.
+    This endpoint provides informational estimates of Tavily API capacity.
     It does NOT block uploads or processing.
 
     The estimates are based on:
-    - Current session Tavily credits used (from actual API responses)
+    - Rows processed this session (successful + failed)
     - Configured monthly credit limit (TAVILY_MONTHLY_CREDITS env var, default 1000)
     - Estimated credits per row (10 credits = 5 queries × 2 credits per advanced search)
+    - Max rows per month = monthly_limit / credits_per_row
 
     This is an INFORMATIONAL estimate only. It does not block uploads,
     processing, or job execution.
