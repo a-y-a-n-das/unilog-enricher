@@ -12,7 +12,9 @@ from pipeline.extraction.evidence import EvidenceBuilder
 from pipeline.extraction.extraction import ProductExtractor
 from pipeline.llm.factory import get_llm_client
 from pipeline.research.agent import ResearchAgent
-
+from pipeline.research.search import SearchUsage
+from services.tavily_usage import TavilyUsageTracker
+from pipeline.llm.config import get_tavily_monthly_credits
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,8 @@ class ProcessingResult:
     record: InputRecord
     product: object
     timings: ProcessingTimings
+    tavily_credits_used: int = 0
+    tavily_credits_remaining: int | None = None
 
 
 class ProcessingService:
@@ -79,7 +83,15 @@ class ProcessingService:
             evidence_builder=self.evidence_builder,
         )
 
-        logger.info("Processing service initialized")
+        # Initialize Tavily usage tracker for capacity estimation
+        monthly_limit = get_tavily_monthly_credits()
+        self.tavily_usage_tracker = TavilyUsageTracker()
+        self.tavily_usage_tracker.configure(monthly_limit=monthly_limit)
+
+        logger.info(
+            "Processing service initialized (Tavily monthly limit: %d credits)",
+            monthly_limit,
+        )
 
     def process(
         self,
@@ -207,7 +219,7 @@ class ProcessingService:
 
         start = perf_counter()
 
-        documents = self._run_stage(
+        documents, research_usage = self._run_stage(
             stage_name=f"[ROW {record.row_number}] Research",
             operation=lambda: self.research_agent.run(
                 record,
@@ -219,11 +231,15 @@ class ProcessingService:
         research_seconds = perf_counter() - start
 
         logger.info(
-            "[ROW %s] Research completed: %d documents in %.2fs",
+            "[ROW %s] Research completed: %d documents in %.2fs (Tavily credits used: %d)",
             record.row_number,
             len(documents),
             research_seconds,
+            research_usage.credits_used,
         )
+
+        # Record Tavily usage for capacity estimation
+        self.tavily_usage_tracker.record_usage(research_usage)
 
         # ---------------------------------------------------------
         # Evidence
@@ -300,4 +316,6 @@ class ProcessingService:
             record=record,
             product=extracted_product,
             timings=timings,
+            tavily_credits_used=research_usage.credits_used,
+            tavily_credits_remaining=research_usage.credits_remaining,
         )

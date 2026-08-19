@@ -1,5 +1,4 @@
 import os
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,6 +7,7 @@ DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 DEFAULT_PROVIDER = "nvidia"
 DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_WORKER_CONCURRENCY = 1
+DEFAULT_TAVILY_MONTHLY_CREDITS = 1000
 
 
 def get_llm_provider() -> str:
@@ -37,3 +37,20 @@ def get_worker_concurrency() -> int:
     if concurrency < 1:
         raise ValueError(f"WORKER_CONCURRENCY must be a positive integer, got: {concurrency}")
     return concurrency
+
+
+def get_tavily_monthly_credits() -> int:
+    """Get the monthly Tavily credits limit from environment variable.
+
+    Defaults to 1000 (Tavily free Researcher plan).
+    """
+    value = os.getenv("TAVILY_MONTHLY_CREDITS")
+    if value is None:
+        return DEFAULT_TAVILY_MONTHLY_CREDITS
+    try:
+        credits = int(value)
+    except ValueError:
+        raise ValueError(f"TAVILY_MONTHLY_CREDITS must be an integer, got: {value}")
+    if credits < 0:
+        raise ValueError(f"TAVILY_MONTHLY_CREDITS must be a non-negative integer, got: {credits}")
+    return credits

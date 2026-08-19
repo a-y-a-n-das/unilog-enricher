@@ -15,6 +15,7 @@ from pipeline.research.query import generate_queries
 from pipeline.research.search import (
     TavilySearch,
     deduplicate_results,
+    SearchUsage,
 )
 from pipeline.research.source_selector import select_sources
 from pathlib import Path
@@ -94,7 +95,7 @@ class ResearchAgent:
         record: InputRecord,
         max_queries: int | None = None,
         workspace: Path | None = None,
-    ) -> list[Document]:
+    ) -> tuple[list[Document], SearchUsage]:
         """
         Run the complete first-pass research pipeline.
 
@@ -106,6 +107,9 @@ class ResearchAgent:
 
         Follow-up/deep-research iterations are intentionally
         not included yet.
+
+        Returns:
+            tuple: (documents, usage) where usage contains Tavily credits consumed
         """
 
         LOGGER.info(
@@ -148,6 +152,7 @@ class ResearchAgent:
         # 2. Search
         # -----------------------------------------------------
         all_results = []
+        total_usage = SearchUsage(credits_used=0, credits_remaining=None)
 
         for query in queries:
             LOGGER.info(
@@ -156,14 +161,19 @@ class ResearchAgent:
             )
 
             with _Timer(f"Search: {query}"):
-                results = self.searcher.search(query)
+                results, usage = self.searcher.search(query)
 
             LOGGER.info(
-                "[Research] Search returned %d results",
+                "[Research] Search returned %d results (credits used: %d)",
                 len(results),
+                usage.credits_used,
             )
 
             all_results.extend(results)
+            total_usage.credits_used += usage.credits_used
+            # Use the most recent credits_remaining if available
+            if usage.credits_remaining is not None:
+                total_usage.credits_remaining = usage.credits_remaining
 
         # -----------------------------------------------------
         # 3. Deduplicate search results
@@ -259,4 +269,4 @@ class ResearchAgent:
 
         )
 
-        return documents
+        return documents, total_usage
