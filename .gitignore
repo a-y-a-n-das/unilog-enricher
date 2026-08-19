@@ -62,6 +62,9 @@ temp/
 Thumbs.db
 .DS_Store
 
+# LLM call debug output
+debug/llm_calls/
+
 src/test1.py
 src/test2.py
 # Local test/debug output
