@@ -13,11 +13,36 @@ from pathlib import Path
 from typing import Any
 
 
-DEBUG_DIR = Path("debug/llm_calls")
-DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-
-_summary_path = DEBUG_DIR / "summary.jsonl"
+_DEBUG_DIR: Path | None = None
+_summary_path: Path | None = None
 _call_counter = 0
+_debug_dir_failed = False
+
+
+def _get_debug_dir() -> Path | None:
+    """Get or create the debug directory lazily.
+    
+    Returns None if directory creation fails (permission issues).
+    """
+    global _DEBUG_DIR, _summary_path, _debug_dir_failed
+    
+    if _debug_dir_failed:
+        return None
+    
+    if _DEBUG_DIR is not None:
+        return _DEBUG_DIR
+    
+    _DEBUG_DIR = Path("debug/llm_calls")
+    try:
+        _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        _summary_path = _DEBUG_DIR / "summary.jsonl"
+        return _DEBUG_DIR
+    except (PermissionError, OSError):
+        # Can't create debug directory - disable file logging
+        _debug_dir_failed = True
+        _DEBUG_DIR = None
+        _summary_path = None
+        return None
 
 
 def _estimate_tokens(text: str) -> int:
@@ -32,8 +57,16 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def _append_summary(record: dict) -> None:
-    with _summary_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    summary_path = _get_debug_dir()
+    if summary_path is None:
+        return
+    summary_path = summary_path / "summary.jsonl"
+    try:
+        with summary_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except (PermissionError, OSError):
+        # Silently ignore file write errors
+        pass
 
 
 def log_llm_call(
@@ -82,8 +115,13 @@ def log_llm_call(
         },
     }
 
-    request_file = DEBUG_DIR / f"{call_id}_request.json"
-    _write_json(request_file, request_data)
+    debug_dir = _get_debug_dir()
+    if debug_dir is not None:
+        request_file = debug_dir / f"{call_id}_request.json"
+        try:
+            _write_json(request_file, request_data)
+        except (PermissionError, OSError):
+            pass
 
     return call_id
 
@@ -121,8 +159,13 @@ def log_llm_response(
         },
     }
 
-    response_file = DEBUG_DIR / f"{call_id}_response.json"
-    _write_json(response_file, response_data)
+    debug_dir = _get_debug_dir()
+    if debug_dir is not None:
+        response_file = debug_dir / f"{call_id}_response.json"
+        try:
+            _write_json(response_file, response_data)
+        except (PermissionError, OSError):
+            pass
 
     summary_record = {
         "call_id": call_id,
@@ -140,19 +183,21 @@ def log_llm_response(
         "error": error,
     }
 
-    request_file = DEBUG_DIR / f"{call_id}_request.json"
-    if request_file.exists():
-        try:
-            req_data = json.loads(request_file.read_text(encoding="utf-8"))
-            summary_record.update({
-                "system_prompt_chars": req_data.get("sizes", {}).get("system_prompt_chars", 0),
-                "user_prompt_chars": req_data.get("sizes", {}).get("user_prompt_chars", 0),
-                "evidence_chars": req_data.get("sizes", {}).get("evidence_chars", 0),
-                "total_chars": req_data.get("sizes", {}).get("total_chars", 0),
-                "estimated_tokens": req_data.get("sizes", {}).get("estimated_tokens", 0),
-            })
-        except Exception:
-            pass
+    debug_dir = _get_debug_dir()
+    if debug_dir is not None:
+        request_file = debug_dir / f"{call_id}_request.json"
+        if request_file.exists():
+            try:
+                req_data = json.loads(request_file.read_text(encoding="utf-8"))
+                summary_record.update({
+                    "system_prompt_chars": req_data.get("sizes", {}).get("system_prompt_chars", 0),
+                    "user_prompt_chars": req_data.get("sizes", {}).get("user_prompt_chars", 0),
+                    "evidence_chars": req_data.get("sizes", {}).get("evidence_chars", 0),
+                    "total_chars": req_data.get("sizes", {}).get("total_chars", 0),
+                    "estimated_tokens": req_data.get("sizes", {}).get("estimated_tokens", 0),
+                })
+            except Exception:
+                pass
 
     _append_summary(summary_record)
 
