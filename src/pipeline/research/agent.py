@@ -197,14 +197,10 @@ class ResearchAgent:
             )
 
         ingestible_sources = [
-                source
-                for source in selected_sources.sources
-                if source.should_ingest
-                and source.authority in {
-                    "official",
-                    "manufacturer_document",
-                }
-            ]
+            source
+            for source in selected_sources.sources
+            if source.should_ingest
+        ]
 
         official_pdf_count = 0
         limited_sources = []

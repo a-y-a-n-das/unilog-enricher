@@ -316,29 +316,36 @@ def _normalize_response(
     )
 
 
-def _filter_official_sources(
+def _filter_ingestible_sources(
     result: SourceVerificationResult,
 ) -> SourceVerificationResult:
     """
-    Keep only sources that the selector classified as
-    official manufacturer sources.
+    Keep sources that the selector explicitly marked as ingestible.
+
+    Source authority determines downstream priority, not basic eligibility.
+
+    Manufacturer/official sources have highest authority.
+    Credible secondary sources may also be retained.
+    Ecommerce, consumer, review, forum, and other low-quality sources
+    should already have should_ingest=False from the selector.
     """
 
-    official_sources = []
+    ingestible_sources = []
 
     for source in result.sources:
-        if (
-            source.should_ingest
-            and source.authority in {
-                "official",
-                "manufacturer_document",
-            }
-        ):
-            official_sources.append(source)
+        if source.should_ingest:
+            ingestible_sources.append(source)
 
+            LOGGER.info(
+                "Retained source: %s "
+                "(authority=%s, should_ingest=%s)",
+                source.url,
+                source.authority,
+                source.should_ingest,
+            )
         else:
             LOGGER.info(
-                "Rejected non-official source: %s "
+                "Rejected source: %s "
                 "(authority=%s, should_ingest=%s)",
                 source.url,
                 source.authority,
@@ -346,7 +353,7 @@ def _filter_official_sources(
             )
 
     return SourceVerificationResult(
-        sources=official_sources,
+        sources=ingestible_sources,
     )
 
 
@@ -382,23 +389,41 @@ def select_sources(
         len(prompt),
     )
 
-    content = llm.generate(prompt)
+    max_retries = 3
+    parsed = None
 
-    parsed = _parse_json_response(content)
+    for attempt in range(1, max_retries + 1):
+        content = llm.generate(
+            prompt,
+            stage="source_selector",
+            temperature=0.1,
+            top_p=0.95,
+        )
 
-    if parsed is None:
+        parsed = _parse_json_response(content)
+
+        if parsed is not None:
+            break
+
         LOGGER.warning(
-            "Failed to parse source selection response as JSON: %s",
+            "Source selector JSON parse failed (attempt %d/%d): %s",
+            attempt,
+            max_retries,
             content[:500],
         )
-        raise ValueError(
-            "Failed to parse source selection response as JSON"
-        )
+
+        if attempt == max_retries:
+            raise ValueError(
+                "Failed to parse source selection response as JSON after %d attempts" % max_retries
+            )
+
+        # Slight backoff before retry
+        import time
+        time.sleep(0.5 * attempt)
 
     try:
         result = _normalize_response(parsed)
-        return _filter_official_sources(result)
-
+        return _filter_ingestible_sources(result)
     except Exception as exc:
         LOGGER.warning(
             "Failed to validate source selection response: %s",
