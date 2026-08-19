@@ -1,5 +1,5 @@
 import { apiClient, ApiError, isApiError } from './client';
-import type { JobCreateResponse, JobStatus, JobRow, RetryFailedResponse } from '../types/api';
+import type { JobCreateResponse, JobStatus, JobRow, RetryFailedResponse, TavilyUsageResponse } from '../types/api';
 
 export const jobsApi = {
   async createJob(file: File): Promise<JobCreateResponse> {
@@ -27,6 +27,10 @@ export const jobsApi = {
 
   async downloadJob(jobId: string, filename: string): Promise<void> {
     return apiClient.download(`/api/jobs/${jobId}/download`, filename);
+  },
+
+  async getTavilyUsage(): Promise<TavilyUsageResponse> {
+    return apiClient.get<TavilyUsageResponse>('/api/usage');
   },
 };
 

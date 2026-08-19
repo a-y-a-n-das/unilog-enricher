@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { FileDropzone } from '../components/upload/FileDropzone';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { jobsApi, isApiError } from '../api/jobs';
+import { ResearchCapacityCard } from '../components/upload/ResearchCapacityCard';
 
 export function NewJob() {
   const navigate = useNavigate();
@@ -129,6 +130,8 @@ export function NewJob() {
           </ul>
         </CardContent>
       </Card>
+
+      <ResearchCapacityCard />
     </div>
   );
 }
