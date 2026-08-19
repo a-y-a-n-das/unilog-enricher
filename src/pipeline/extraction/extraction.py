@@ -252,7 +252,8 @@ class ProductExtractor:
         )
 
         content = self.llm.generate(
-            prompt
+            prompt,
+            stage="extraction",
         )
 
         LOGGER.info(

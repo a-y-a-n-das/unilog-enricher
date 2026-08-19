@@ -159,7 +159,8 @@ def generate_queries(
         temperature=0.1,
         top_p=0.9,
         enable_thinking=False,
-        )
+        stage="research_query_generation",
+    )
 
 
     parsed = _parse_json_response(content)
