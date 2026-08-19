@@ -24,6 +24,7 @@ from api.models import (
     JobStatusResponse,
     JobListResponse,
     RetryFailedResponse,
+    TavilyUsageResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -49,6 +50,12 @@ logger = logging.getLogger(__name__)
 
 def get_processing_service() -> ProcessingService:
     return ProcessingService()
+
+
+def get_tavily_usage_tracker_dependency():
+    """Dependency to get the global Tavily usage tracker."""
+    from services.tavily_usage import get_tavily_usage_tracker
+    return get_tavily_usage_tracker()
 
 
 def get_worker(processing_service: ProcessingService = Depends(get_processing_service)) -> Worker:
@@ -260,3 +267,37 @@ async def download_job_output(job_id: str) -> FileResponse:
         ),
         background=BackgroundTask(lambda: temp_path.unlink(missing_ok=True)),
     )
+
+
+@router.get(
+    "/usage",
+    response_model=TavilyUsageResponse,
+    responses={
+        500: {"model": ErrorResponse, "description": "Failed to retrieve usage information"},
+    },
+)
+async def get_tavily_usage(
+    tracker=Depends(get_tavily_usage_tracker_dependency),
+) -> TavilyUsageResponse:
+    """Get Tavily API usage and capacity estimation.
+
+    This endpoint provides informational estimates of Tavily API credit usage.
+    It does NOT block uploads or processing.
+
+    The estimates are based on:
+    - Current session Tavily credits used (from actual API responses)
+    - Configured monthly credit limit (TAVILY_MONTHLY_CREDITS env var, default 1000)
+    - Estimated credits per row (10 credits = 5 queries × 2 credits per advanced search)
+
+    This is an INFORMATIONAL estimate only. It does not block uploads,
+    processing, or job execution.
+    """
+    try:
+        summary = tracker.get_summary()
+        return TavilyUsageResponse(**summary["tavily"])
+    except Exception as e:
+        logger.exception("Failed to retrieve Tavily usage")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve Tavily usage information",
+        )

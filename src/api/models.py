@@ -50,6 +50,15 @@ class RetryFailedResponse(BaseModel):
     message: str
 
 
+class TavilyUsageResponse(BaseModel):
+    credits_used_this_session: int
+    credits_remaining: int | None = None
+    estimated_credits_per_row: int
+    estimated_rows_remaining: int | None = None
+    monthly_credit_limit: int
+    note: str
+
+
 def make_job_status_response(job) -> JobStatusResponse:
     return JobStatusResponse(
         job_id=str(job.id),
