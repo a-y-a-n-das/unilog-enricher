@@ -54,10 +54,20 @@ export function NewJob() {
           <CardTitle>Upload Excel Workbook or CSV</CardTitle>
           <CardDescription>
             Drag and drop or click to browse. Maximum file size: 10MB.
-            {isXlsx && ' Excel workbooks must contain a sheet named "Input".'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3" role="alert">
+            <span className="flex-shrink-0 h-5 w-5 text-amber-600 mt-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-body-sm font-medium text-amber-800">Uploaded file must contain a sheet named exactly <code className="bg-amber-100 px-1 rounded">"Input"</code> (case-sensitive) for .xlsx, or column headers in the first row for .csv</p>
+              <p className="text-caption text-amber-700 mt-0.5">The first row <strong>must contain column headers (or leave it empty)</strong> — it is used as headers and <strong>will not be ingested as data</strong>.</p>
+            </div>
+          </div>
           <FileDropzone
             onFileSelect={handleFileSelect}
             disabled={uploading}
@@ -110,13 +120,15 @@ export function NewJob() {
                   {/* eslint-disable-next-line react/no-unescaped-entities */}
                   <span>Must contain a sheet named exactly "Input" (case-sensitive)</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
-                  {/* eslint-disable-next-line react/no-unescaped-entities */}
-                  <span>First row of the "Input" sheet should contain column headers</span>
-                </li>
               </>
             )}
+            {isXlsx || selectedFile?.name.toLowerCase().endsWith('.csv') ? (
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
+                {/* eslint-disable-next-line react/no-unescaped-entities */}
+                <span>First row must contain column headers (or leave it empty) — it will <strong>not</strong> be ingested as data</span>
+              </li>
+            ) : null}
             {selectedFile && selectedFile.name.toLowerCase().endsWith('.csv') && (
               <li className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-unilog-success flex-shrink-0" />
