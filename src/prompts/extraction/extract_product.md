@@ -2408,14 +2408,25 @@ in this order:
 5. Brand-official product page explicitly matching the target product
    (when brand is explicitly identified in input/evidence).
 
-Do NOT use a generic manufacturer homepage/domain as MFR_URL.
+Do NOT use a generic manufacturer homepage/domain as MFR_URL unless no more specific manufacturer product URL is available.
+
 Do NOT use a distributor/retailer URL as MFR_URL merely because it is
 the best available product source.
+
 Do NOT construct or guess URLs.
 
 If no qualifying URL is explicitly present in the supplied evidence:
 
     MFR_URL = null
+
+### Brand Domain Homepage Fallback
+
+When no exact manufacturer product page or brand-official product page is available in the evidence, but the evidence identifies the manufacturer's or brand's official domain (e.g., diablotools.com for Diablo, milwaukeetool.com for Milwaukee), the brand's official domain homepage MAY be used as MFR_URL.
+
+This fallback applies only when:
+- The brand is explicitly identified in the input or evidence
+- The brand's official domain is explicitly present in the evidence
+- No higher-priority manufacturer URL (per the priority list above) is available
 
 ### MFR_URL Discovery Checklist
 
