@@ -230,13 +230,6 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 - **No auth** on API endpoints
 - **No pagination** on `/jobs` or `/jobs/{id}/rows`
 
-## Development Notes
-
-### Adding a new LLM provider
-
-1. Create `src/pipeline/llm/<provider>.py` implementing `LLMClient` protocol
-2. Update `src/pipeline/llm/factory.py` to route provider
-3. Add config in `src/pipeline/llm/config.py`
 
 ### Running migrations
 
@@ -245,22 +238,16 @@ alembic upgrade head
 alembic revision --autogenerate -m "description"
 ```
 
-### Debug logging
-
-LLM calls logged to `debug/llm_calls/` (request/response JSON + summary.jsonl). Falls back to console only if directory not writable.
-
-### Debug extraction for one row
-
-```bash
-python test_extraction_direct.py
-```
-
-Uses `ProcessingService` directly with hardcoded test row.
-
 ## Project Status
 
 Actively developed. Core pipeline stable. Extraction prompt actively refined (see `src/prompts/extraction/extract_product.md` — 3000+ lines of extraction rules).
 
 ## License
 
-MIT
+Copyright © 2026 Ayan Das. All rights reserved.
+
+This repository is provided for evaluation and demonstration purposes as part of the UniHack Hackathon.
+
+No license is granted to copy, modify, distribute, sublicense, or use this code or any portion of it for commercial purposes without prior written permission from the copyright holder.
+
+For commercial use, redistribution, or licensing inquiries, please contact the copyright holder.
