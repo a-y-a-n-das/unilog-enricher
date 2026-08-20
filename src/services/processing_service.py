@@ -235,8 +235,9 @@ class ProcessingService:
             research_usage.credits_used,
         )
 
-        # Record Tavily usage for capacity estimation (row-based counter)
-        self.tavily_usage_tracker.record_row_processed()
+        # Record actual Tavily credits used
+        if research_usage.credits_used > 0:
+            self.tavily_usage_tracker.record_credits_used(research_usage.credits_used)
 
         # ---------------------------------------------------------
         # Evidence

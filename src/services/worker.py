@@ -114,6 +114,10 @@ class Worker:
         """
         logger.info("[JOB %s] Claimed row %s", job_id, row.row_number)
 
+        # Track Tavily usage for this row attempt (successful or failed)
+        from services.tavily_usage import get_tavily_usage_tracker
+        get_tavily_usage_tracker().record_row_processed()
+
         record = self._convert_to_input_record(row)
         if record is None:
             logger.error("[JOB %s] Row %s: failed to convert input_data", job_id, row.row_number)
