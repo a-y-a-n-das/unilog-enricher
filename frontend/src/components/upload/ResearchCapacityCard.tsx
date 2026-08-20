@@ -1,32 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
 import { Loader2, Info } from 'lucide-react';
 import { jobsApi } from '../../api/jobs';
 import type { TavilyUsageResponse } from '../../types/api';
+
+const POLL_INTERVAL = 15000;
 
 export function ResearchCapacityCard() {
   const [usage, setUsage] = useState<TavilyUsageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUsage = async () => {
+  const fetchUsage = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
       const data = await jobsApi.getTavilyUsage();
       setUsage(data);
     } catch (err) {
-      // Silently fail - this is informational only
       console.warn('Failed to fetch Tavily usage:', err);
       setError('Research capacity unavailable');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUsage();
-  }, []);
+    const interval = setInterval(fetchUsage, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchUsage]);
 
   if (!loading && error && !usage) {
     return (
