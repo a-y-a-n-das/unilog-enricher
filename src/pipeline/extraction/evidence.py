@@ -282,12 +282,12 @@ class EvidenceBuilder:
         ]
 
         for field in identifier_fields:
-            value = data.get(field, "").strip()
+            value = str(data.get(field, "")).strip()
             if value and value not in ("-- Unbranded --", "-- No Unilog Brand --", "-- No DIB Brand --", "N/A"):
                 identifiers.add(value.lower())
 
         # Also extract alphanumeric tokens from manufacturer field
-        manufacturer = data.get("Manufacturer", "").strip()
+        manufacturer = str(data.get("Manufacturer", "")).strip()
         if manufacturer:
             # Extract potential MPNs/part numbers from manufacturer string
             tokens = re.findall(r"[A-Z0-9][A-Z0-9\-]{3,}", manufacturer)
