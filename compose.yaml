@@ -1,9 +1,8 @@
 services:
-  app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: unilog-enricher
     ports:
       - "8000:8000"
     environment:
@@ -11,12 +10,15 @@ services:
       - LLM_MODEL=${LLM_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - EXA_API_KEY=${EXA_API_KEY}
+      - EXA_MONTHLY_DOLLAR_LIMIT=${EXA_MONTHLY_DOLLAR_LIMIT:-10.0}
       - DATABASE_URL=${DATABASE_URL}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
+    env_file:
+      - .env
     volumes:
-      - unilog-data:/app/data
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -25,6 +27,16 @@ services:
       retries: 3
     restart: unless-stopped
 
-volumes:
-  unilog-data:
-    driver: local
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - api
+    restart: unless-stopped
