@@ -18,13 +18,13 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from api.models import (
+    CreditsResponse,
     ErrorResponse,
     JobCreateResponse,
+    JobListResponse,
     JobRowResponse,
     JobStatusResponse,
-    JobListResponse,
     RetryFailedResponse,
-    TavilyUsageResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -37,6 +37,7 @@ from database.models import Job
 from models.input_models import InputRecord
 from pipeline.input.csv import load_input_csv
 from pipeline.input.xlsx import load_input_xlsx
+from services.free_credits import get_free_credits_tracker
 from services.job_service import ValidationError, create_job, get_job_status, retry_failed_rows
 from services.processing_service import ProcessingService
 from services.worker import Worker
@@ -52,10 +53,10 @@ def get_processing_service() -> ProcessingService:
     return ProcessingService()
 
 
-def get_tavily_usage_tracker_dependency():
-    """Dependency to get the global Tavily usage tracker."""
-    from services.tavily_usage import get_tavily_usage_tracker
-    return get_tavily_usage_tracker()
+def get_free_credits_tracker_dependency():
+    """Dependency to get the global free credits tracker."""
+    from services.free_credits import get_free_credits_tracker
+    return get_free_credits_tracker()
 
 
 def get_worker(processing_service: ProcessingService = Depends(get_processing_service)) -> Worker:
@@ -270,35 +271,31 @@ async def download_job_output(job_id: str) -> FileResponse:
 
 
 @router.get(
-    "/usage",
-    response_model=TavilyUsageResponse,
+    "/credits",
+    response_model=CreditsResponse,
     responses={
-        500: {"model": ErrorResponse, "description": "Failed to retrieve usage information"},
+        500: {"model": ErrorResponse, "description": "Failed to retrieve credits information"},
     },
 )
-async def get_tavily_usage(
-    tracker=Depends(get_tavily_usage_tracker_dependency),
-) -> TavilyUsageResponse:
-    """Get Tavily API usage and capacity estimation (row-based).
+async def get_credits(
+    tracker=Depends(get_free_credits_tracker_dependency),
+) -> CreditsResponse:
+    """Get remaining free credits for row processing.
 
-    This endpoint provides informational estimates of Tavily API capacity.
-    It does NOT block uploads or processing.
-
-    The estimates are based on:
-    - Rows processed this session (successful + failed)
-    - Configured monthly credit limit (TAVILY_MONTHLY_CREDITS env var, default 1000)
-    - Estimated credits per row (10 credits = 5 queries × 2 credits per advanced search)
-    - Max rows per month = monthly_limit / credits_per_row
-
-    This is an INFORMATIONAL estimate only. It does not block uploads,
-    processing, or job execution.
+    Each attempted row consumes 1 credit, regardless of outcome.
+    This is an application-level allowance, not related to Exa API billing.
     """
     try:
         summary = tracker.get_summary()
-        return TavilyUsageResponse(**summary["tavily"])
+        return CreditsResponse(
+            remaining_credits=summary.remaining_credits,
+            initial_credits=summary.initial_credits,
+            credits_used_this_session=summary.credits_used_this_session,
+            note=summary.note,
+        )
     except Exception as e:
-        logger.exception("Failed to retrieve Tavily usage")
+        logger.exception("Failed to retrieve credits")
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve Tavily usage information",
+            detail="Failed to retrieve credits information",
         )

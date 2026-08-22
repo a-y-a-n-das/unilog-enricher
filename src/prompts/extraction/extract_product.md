@@ -137,6 +137,13 @@ Populate a field ONLY when ALL THREE conditions are met:
 2. The value is relevant to the target field
 3. The evidence applies to the exact target product
 
+**EXCEPTION — MFR_URL:** MFR_URL is a SOURCE LOCATION field, not a product-attribute field. For MFR_URL only, the Population Gate is satisfied when:
+
+1. The URL is explicitly present in the supplied evidence, AND
+2. The URL is an official manufacturer/brand-controlled URL.
+
+A fallback MFR_URL does NOT establish evidence for any product-specific field (manufacturer part number, part number, dimensions, specifications, warranty, discontinued status, packaging, price, UPC/EAN/GTIN, alternate part number, features, attributes, applications, or any other product-specific field). Those fields must continue to follow the existing evidence-grounding and exact-product rules. The priority order in §43A governs which official URL is selected.
+
 Do NOT populate a field merely because:
 
 - The schema contains the field
@@ -2340,12 +2347,19 @@ A URL must belong to the target product or to a clearly applicable
 official document.
 
 ============================================================
-## 43A. MANUFACTURER PRODUCT URL
+## 43A. MANUFACTURER PRODUCT URL (MFR_URL)
 ============================================================
 
-MFR_URL represents the best authoritative manufacturer-hosted URL for
-the exact target product, or the best explicitly identified official
-manufacturer web resource when an exact product page is not available.
+MFR_URL is a SOURCE LOCATION field, not a product-attribute field.
+
+MFR_URL represents the best authoritative manufacturer-hosted URL for the exact target product, or the best explicitly identified official manufacturer web resource when an exact product page is not available.
+
+For MFR_URL only, the general exact-product Population Gate is satisfied when:
+
+1. The URL is explicitly present in the supplied evidence, AND
+2. The URL is an official manufacturer/brand-controlled URL.
+
+A fallback MFR_URL does NOT establish evidence for any product-specific field (manufacturer part number, part number, dimensions, specifications, warranty, discontinued status, packaging, price, UPC/EAN/GTIN, alternate part number, features, attributes, applications, or any other product-specific field). Those fields must continue to follow the existing evidence-grounding and exact-product rules.
 
 The URL may be obtained from ANY supplied research evidence, including:
 
@@ -2359,74 +2373,115 @@ The URL may be obtained from ANY supplied research evidence, including:
 - manufacturer-hosted technical documents
 - other official manufacturer-hosted evidence
 
-A manufacturer URL discovered inside a supplied PDF or document is valid
-evidence if the URL is explicitly present in that document and the
-document is clearly associated with the target product.
+A manufacturer URL discovered inside a supplied PDF or document is valid evidence if the URL is explicitly present in that document and the document is clearly associated with the target product.
 
-URL DISCOVERY DOES NOT REQUIRE THE URL TO HAVE BEEN RETURNED AS A SEARCH
-RESULT URL.
+URL DISCOVERY DOES NOT REQUIRE THE URL TO HAVE BEEN RETURNED AS A SEARCH RESULT URL.
 
 For example, if a manufacturer PDF for the exact target product contains:
 
     https://www.example.com/product/12345
 
-that URL may be selected as MFR_URL even if the PDF itself was the
-resource returned by search.
+that URL may be selected as MFR_URL even if the PDF itself was the resource returned by search.
 
-Similarly, if the supplied manufacturer evidence explicitly identifies
-the manufacturer's official website/domain, that URL may be used when
-no more specific manufacturer product URL is available.
+Similarly, if the supplied manufacturer evidence explicitly identifies the manufacturer's official website/domain, that URL may be used when no more specific manufacturer product URL is available.
 
 ### Brand-Official Pages Count as Manufacturer URLs
 
-When the target product has an explicitly identified BRAND (from input
-or evidence), and a brand-official domain exists in the evidence
-(e.g., diablotools.com for Diablo), that brand's official product page
-for the exact target product QUALIFIES as MFR_URL.
+When the target product has an explicitly identified BRAND (from input or evidence), and a brand-official domain exists in the evidence (e.g., diablotools.com for Diablo), that brand's official product page for the exact target product QUALIFIES as MFR_URL.
 
-Do NOT reject a brand-official URL merely because the domain differs
-from the corporate manufacturer's domain. The brand IS the manufacturer
-for that brand's products.
+Do NOT reject a brand-official URL merely because the domain differs from the corporate manufacturer's domain. The brand IS the manufacturer for that brand's products.
 
-SOURCE SELECTION PRIORITY
+### MFR_URL Priority
 
-When multiple qualifying manufacturer URLs are available, prefer them
-in this order:
+When multiple qualifying manufacturer URLs are available, prefer them in this order:
 
-1. Exact manufacturer product page explicitly matching the target
-   input Mfg_Part_Num.
+1. Exact manufacturer product page explicitly matching the target input Mfg_Part_Num.
 
-2. Exact manufacturer product page explicitly matching another exact
-   target identifier.
+2. Exact manufacturer product page explicitly matching another exact identifier for the target.
 
-3. Manufacturer product URL explicitly referenced inside an official
-   manufacturer PDF/document for the exact target product.
+3. Manufacturer-hosted PDF/document that explicitly identifies the exact target product and provides or references its product URL.
 
-4. Manufacturer-hosted technical/documentation URL explicitly associated
-   with the exact target product.
+4. Manufacturer-hosted technical/documentation/product resource that explicitly identifies the exact target product by MPN, model number, or another exact identifier and provides product-specific information.
 
-5. Brand-official product page explicitly matching the target product
-   (when brand is explicitly identified in input/evidence).
+5. Brand-official product page explicitly matching the target product (when brand is explicitly identified in input/evidence).
 
-Do NOT use a generic manufacturer homepage/domain as MFR_URL unless no more specific manufacturer product URL is available.
+6. Official manufacturer/brand product-family page relevant to the target.
 
-Do NOT use a distributor/retailer URL as MFR_URL merely because it is
-the best available product source.
+7. Official manufacturer/brand homepage.
+
+8. null when no official manufacturer/brand URL is present.
+
+Select the highest-priority eligible URL actually present in the supplied evidence.
+
+### Important: Generic Manufacturer Resources Do Not Block Fallback
+
+Make this distinction explicit:
+
+A generic manufacturer documentation portal, technical-document index, SDS repository, download center, product-family overview, corporate page, or generic manufacturer landing page that does NOT explicitly identify the exact target product does NOT qualify as an exact-product manufacturer URL under priorities 1–5.
+
+Such a generic manufacturer resource must NOT block the homepage fallback.
+
+For example:
+
+    https://www.mirka.com/en-us/support/downloads/technical-documents/
+
+is an official manufacturer resource, but if it does not explicitly identify 5B-332-080, it does not qualify as an exact-product technical/documentation URL.
+
+Therefore, if no priority 1–5 URL exists and an official manufacturer domain is present, use the official manufacturer homepage as MFR_URL.
+
+Do not interpret "a more specific manufacturer URL exists" to mean merely that a technical-documentation portal exists.
+
+"More specific" means more specific to the TARGET PRODUCT.
+
+### Manufacturer / Brand / Domain Signal
+
+When determining whether a URL is manufacturer/brand-controlled, use the available source-authority information when present.
+
+If SourceSelector authority metadata is available, such as:
+
+    authority = official
+
+treat that classification as authoritative for source-authority decisions.
+
+If explicit authority metadata is not present, the manufacturer name, brand name, and domain may be used as supporting signals.
+
+For example:
+
+    Manufacturer: Mirka Abrasives Inc
+    Brand: Mirka
+    Domain: mirka.com
+
+is strong supporting evidence that mirka.com is the official manufacturer domain.
+
+Brand/domain similarity is NOT mandatory and must NOT be treated as a strict string-matching requirement.
+
+Also, brand/domain similarity alone does NOT establish product-specific evidence.
+
+Keep these concepts separate:
+
+    official authority
+        ≠
+    exact product evidence
+
+An official manufacturer homepage can therefore be valid MFR_URL fallback while being insufficient evidence for product-specific attributes.
+
+### Manufacturer Homepage Fallback
+
+When no eligible exact-product manufacturer URL or exact-product manufacturer document/resource is available, but an official manufacturer/brand domain is explicitly present in the supplied evidence:
+
+    MFR_URL SHALL be the official manufacturer homepage.
+
+Do not return null merely because the homepage does not contain product-specific information.
+
+This fallback exists specifically to provide the authoritative manufacturer source location when an exact manufacturer product page cannot be discovered.
+
+This fallback applies ONLY to MFR_URL.
 
 Do NOT construct or guess URLs.
 
 If no qualifying URL is explicitly present in the supplied evidence:
 
     MFR_URL = null
-
-### Brand Domain Homepage Fallback
-
-When no exact manufacturer product page or brand-official product page is available in the evidence, but the evidence identifies the manufacturer's or brand's official domain (e.g., diablotools.com for Diablo, milwaukeetool.com for Milwaukee), the brand's official domain homepage MAY be used as MFR_URL.
-
-This fallback applies only when:
-- The brand is explicitly identified in the input or evidence
-- The brand's official domain is explicitly present in the evidence
-- No higher-priority manufacturer URL (per the priority list above) is available
 
 ### MFR_URL Discovery Checklist
 

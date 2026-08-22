@@ -13,7 +13,7 @@ from pipeline.llm.client import LLMClient
 from pipeline.research.orchestrator import ResearchOrchestrator
 from pipeline.research.query import generate_queries
 from pipeline.research.search import (
-    TavilySearch,
+    ExaSearch,
     deduplicate_results,
     SearchUsage,
 )
@@ -70,14 +70,14 @@ class ResearchAgent:
     def __init__(
         self,
         llm: LLMClient,
-        searcher: TavilySearch | None = None,
+        searcher: ExaSearch | None = None,
         orchestrator: ResearchOrchestrator | None = None,
     ) -> None:
         self.llm = llm
 
         self.searcher = (
             searcher
-            or TavilySearch()
+            or ExaSearch()
         )
 
         self.orchestrator = (
@@ -109,7 +109,7 @@ class ResearchAgent:
         not included yet.
 
         Returns:
-            tuple: (documents, usage) where usage contains Tavily credits consumed
+            tuple: (documents, usage) where usage contains Exa search usage
         """
 
         LOGGER.info(
@@ -164,9 +164,9 @@ class ResearchAgent:
                 results, usage = self.searcher.search(query)
 
             LOGGER.info(
-                "[Research] Search returned %d results (credits used: %d)",
+                "[Research] Search returned %d results (usage: %s)",
                 len(results),
-                usage.credits_used,
+                usage,
             )
 
             all_results.extend(results)

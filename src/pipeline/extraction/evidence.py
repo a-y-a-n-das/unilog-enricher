@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 
 from models.document_models import Document
+from models.input_models import InputRecord
 
 
 LOGGER = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ class EvidenceBuilder:
     - removes empty documents
     - removes duplicate URLs
     - removes duplicate document content
+    - filters irrelevant manufacturer PDFs (no target MPN/identifiers)
     - preserves useful provenance
     - preserves complete content of retained documents
 
@@ -26,6 +29,7 @@ class EvidenceBuilder:
     - empty documents
     - duplicate URLs
     - duplicate content
+    - filtered irrelevant manufacturer PDFs
     - raw content size
     - final evidence size
     """
@@ -33,6 +37,7 @@ class EvidenceBuilder:
     def build(
         self,
         documents: list[Document],
+        record: InputRecord | None = None,
     ) -> str:
         sections: list[str] = []
 
@@ -45,11 +50,15 @@ class EvidenceBuilder:
         empty_count = 0
         duplicate_url_count = 0
         duplicate_content_count = 0
+        filtered_irrelevant_count = 0
 
         LOGGER.info(
             "[Evidence] Input documents: %d",
             len(documents),
         )
+
+        # Extract target identifiers for relevance filtering
+        target_identifiers = self._extract_target_identifiers(record)
 
         for document_index, document in enumerate(
             documents,
@@ -99,6 +108,25 @@ class EvidenceBuilder:
 
                 LOGGER.info(
                     "[Evidence] #%d EMPTY | type=%s | chars=%d | url=%s",
+                    document_index,
+                    document_type,
+                    raw_chars,
+                    url,
+                )
+
+                continue
+
+            # -------------------------------------------------
+            # Filter irrelevant manufacturer PDFs.
+            # -------------------------------------------------
+            if self._is_irrelevant_manufacturer_pdf(
+                document, content, url, document_type, target_identifiers
+            ):
+                filtered_irrelevant_count += 1
+
+                LOGGER.info(
+                    "[Evidence] #%d FILTERED_IRRELEVANT_MFR_PDF | "
+                    "type=%s | chars=%d | url=%s",
                     document_index,
                     document_type,
                     raw_chars,
@@ -194,12 +222,14 @@ class EvidenceBuilder:
                 "[Evidence] Summary: "
                 "input=%d retained=%d empty=%d "
                 "duplicate_url=%d duplicate_content=%d "
+                "filtered_irrelevant=%d "
                 "raw_chars=%d evidence_chars=%d",
                 len(documents),
                 output_index,
                 empty_count,
                 duplicate_url_count,
                 duplicate_content_count,
+                filtered_irrelevant_count,
                 total_raw_chars,
                 len(evidence),
             )
@@ -217,17 +247,154 @@ class EvidenceBuilder:
             "[Evidence] Summary: "
             "input=%d retained=%d empty=%d "
             "duplicate_url=%d duplicate_content=%d "
+            "filtered_irrelevant=%d "
             "raw_chars=%d evidence_chars=%d",
             len(documents),
             output_index,
             empty_count,
             duplicate_url_count,
             duplicate_content_count,
+            filtered_irrelevant_count,
             total_raw_chars,
             len(evidence),
         )
 
         return evidence
+
+    @staticmethod
+    def _extract_target_identifiers(record: InputRecord | None) -> list[str]:
+        """Extract product identifiers from the input record for relevance filtering."""
+        if record is None:
+            return []
+
+        identifiers: set[str] = set()
+        data = record.data or {}
+
+        # Common identifier fields
+        identifier_fields = [
+            "ManufacturerPartNumber",
+            "Mfg_Part_Num",
+            "MPN",
+            "Part_Desc",
+            "Product",
+            "SKU - MY_PART_NUMBER",
+            "PART_NUMBER",
+        ]
+
+        for field in identifier_fields:
+            value = data.get(field, "").strip()
+            if value and value not in ("-- Unbranded --", "-- No Unilog Brand --", "-- No DIB Brand --", "N/A"):
+                identifiers.add(value.lower())
+
+        # Also extract alphanumeric tokens from manufacturer field
+        manufacturer = data.get("Manufacturer", "").strip()
+        if manufacturer:
+            # Extract potential MPNs/part numbers from manufacturer string
+            tokens = re.findall(r"[A-Z0-9][A-Z0-9\-]{3,}", manufacturer)
+            identifiers.update(t.lower() for t in tokens)
+
+        return list(identifiers)
+
+    @staticmethod
+    def _is_irrelevant_manufacturer_pdf(
+        document: Document,
+        content: str,
+        url: str,
+        document_type: str,
+        target_identifiers: list[str],
+    ) -> bool:
+        """
+        Filter out manufacturer PDFs that don't mention any target identifiers.
+
+        Only applies to PDF documents from manufacturer/official sources.
+        """
+        # Only filter PDFs
+        is_pdf = document_type == "pdf" or url.lower().endswith(".pdf")
+        if not is_pdf:
+            return False
+
+        # Check if it's from a manufacturer/official source
+        metadata = document.metadata or {}
+        source_url = metadata.get("source_url", "") or ""
+        combined_url = f"{source_url} {url}".lower()
+
+        manufacturer_domains = [
+            "mirka.com",
+            "diablotools.com",
+            "milwaukeetool.com",
+        ]
+
+        is_manufacturer_source = any(domain in combined_url for domain in manufacturer_domains)
+
+        if not is_manufacturer_source:
+            return False
+
+        if not target_identifiers:
+            # No identifiers to check against, don't filter
+            return False
+
+        # Check if any target identifier appears in the content
+        content_lower = content.lower()
+        for identifier in target_identifiers:
+            if identifier in content_lower:
+                return False  # Relevant - contains target identifier
+
+        # No target identifier found - filter this manufacturer PDF
+        return True
+
+    @staticmethod
+    def _format_document(
+        index: int,
+        document: Document,
+        *,
+        content: str,
+        url: str,
+    ) -> str:
+        metadata = document.metadata or {}
+
+        document_type = metadata.get(
+            "document_type",
+            document.source,
+        )
+
+        source_url = (
+            metadata.get(
+                "source_url",
+                "",
+            )
+            or ""
+        ).strip()
+
+        lines = [
+            f"===== SOURCE {index} =====",
+            f"DOCUMENT TYPE: {document_type}",
+        ]
+
+        if url:
+            lines.append(
+                f"URL: {url}"
+            )
+
+        if (
+            source_url
+            and source_url.rstrip("/")
+            != url.rstrip("/")
+        ):
+            lines.append(
+                f"SOURCE URL: {source_url}"
+            )
+
+        lines.extend(
+            [
+                "",
+                "CONTENT:",
+                content,
+                "",
+                f"===== END SOURCE {index} =====",
+            ]
+        )
+
+        return "\n".join(lines)
 
     @staticmethod
     def _format_document(

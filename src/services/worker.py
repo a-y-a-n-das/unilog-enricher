@@ -8,6 +8,7 @@ from database import repositories
 from database.models import Job
 from models.input_models import InputRecord
 from pipeline.llm.config import get_worker_concurrency
+from services.free_credits import get_free_credits_tracker
 from services.processing_service import ProcessingResult, ProcessingService
 
 if TYPE_CHECKING:
@@ -83,7 +84,11 @@ class Worker:
 
     def _run_sequential(self, job_id: str) -> None:
         """Sequential processing (WORKER_CONCURRENCY=1)."""
+        tracker = get_free_credits_tracker()
         while True:
+            if not tracker.can_process_row():
+                logger.info("[JOB %s] No free credits remaining, stopping", job_id)
+                break
             row = repositories.claim_next_pending_row(job_id)
             if row is None:
                 break
@@ -92,9 +97,13 @@ class Worker:
     def _run_concurrent(self, job_id: str, concurrency: int) -> None:
         """Concurrent processing using a fixed thread pool."""
         logger.info("[JOB %s] Starting %d concurrent workers", job_id, concurrency)
+        tracker = get_free_credits_tracker()
 
         def worker_loop() -> None:
             while True:
+                if not tracker.can_process_row():
+                    logger.info("[JOB %s] No free credits remaining, stopping worker", job_id)
+                    break
                 row = repositories.claim_next_pending_row(job_id)
                 if row is None:
                     break
@@ -114,9 +123,13 @@ class Worker:
         """
         logger.info("[JOB %s] Claimed row %s", job_id, row.row_number)
 
-        # Track Tavily usage for this row attempt (successful or failed)
-        from services.tavily_usage import get_tavily_usage_tracker
-        get_tavily_usage_tracker().record_row_processed()
+        # Consume one free credit for this row attempt (successful or failed)
+        tracker = get_free_credits_tracker()
+        if not tracker.consume_credit():
+            logger.warning("[JOB %s] No free credits available for row %s, marking as failed", job_id, row.row_number)
+            repositories.mark_row_failed(row.id, "No free credits remaining")
+            repositories.update_job_progress(job_id)
+            return
 
         record = self._convert_to_input_record(row)
         if record is None:

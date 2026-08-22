@@ -1,97 +1,99 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/Card';
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, AlertCircle } from 'lucide-react';
 import { jobsApi } from '../../api/jobs';
-import type { TavilyUsageResponse } from '../../types/api';
+import type { CreditsResponse } from '../../types/api';
 
 const POLL_INTERVAL = 15000;
 
 export function ResearchCapacityCard() {
-  const [usage, setUsage] = useState<TavilyUsageResponse | null>(null);
+  const [credits, setCredits] = useState<CreditsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUsage = useCallback(async () => {
+  const fetchCredits = useCallback(async () => {
     try {
       setError(null);
-      const data = await jobsApi.getTavilyUsage();
-      setUsage(data);
+      const data = await jobsApi.getCredits();
+      setCredits(data);
     } catch (err) {
-      console.warn('Failed to fetch Tavily usage:', err);
-      setError('Research capacity unavailable');
+      console.warn('Failed to fetch credits:', err);
+      setError('Credits unavailable');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchUsage();
-    const interval = setInterval(fetchUsage, POLL_INTERVAL);
+    fetchCredits();
+    const interval = setInterval(fetchCredits, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchUsage]);
+  }, [fetchCredits]);
 
-  if (!loading && error && !usage) {
+  if (!loading && error && !credits) {
     return (
       <Card variant="elevated" className="border-unilog-border/50">
         <CardContent className="pt-0 pb-4 px-4">
           <div className="flex items-center gap-2 text-body-sm text-unilog-textMuted">
-            <Info className="h-4 w-4 flex-shrink-0" />
-            <span>Research capacity unavailable</span>
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>Free credits unavailable</span>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  if (!usage) {
+  if (!credits) {
     return (
       <Card variant="elevated" className="border-unilog-border/50">
         <CardContent className="pt-0 pb-4 px-4">
           <div className="flex items-center gap-2 text-body-sm text-unilog-textMuted">
             <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-            <span>Loading research capacity...</span>
+            <span>Loading free credits...</span>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const { credits_used_this_session, credits_remaining, estimated_credits_per_row, estimated_rows_remaining, monthly_credit_limit, note } = usage;
-
-  // Determine the best estimate for display
-  const displayRemaining = credits_remaining ?? (monthly_credit_limit > 0 ? Math.max(0, monthly_credit_limit - (credits_used_this_session ?? 0)) : null);
-  const displayRows = estimated_rows_remaining ?? (displayRemaining !== null && estimated_credits_per_row > 0 ? Math.max(0, Math.floor(displayRemaining / estimated_credits_per_row)) : null);
+  const { remaining_credits, initial_credits, credits_used_this_session, note } = credits;
 
   return (
     <Card variant="elevated" className="border-unilog-border/50">
       <CardHeader className="pb-2">
         <CardTitle className="text-body flex items-center gap-2">
           <Info className="h-5 w-5 text-unilog-primary" />
-          Research Capacity
+          Free Credits
         </CardTitle>
         <CardDescription className="text-body-xs">
-          Estimated Tavily API capacity for planning. Does not block processing.
+          Each attempted row consumes 1 credit. This is an application-level allowance, not related to Exa API billing.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
         <div className="grid grid-cols-2 gap-4">
           <div className="p-3 bg-unilog-bgSoft/50 rounded-lg">
             <p className="text-body-xs text-unilog-textMuted">Credits Used (Session)</p>
-            <p className="text-display font-mono text-unilog-text">{credits_used_this_session ?? 0}</p>
+            <p className="text-display font-mono text-unilog-text">{credits_used_this_session}</p>
           </div>
           <div className="p-3 bg-unilog-bgSoft/50 rounded-lg">
-            <p className="text-body-xs text-unilog-textMuted">Est. Credits/Row</p>
-            <p className="text-display font-mono text-unilog-text">~{estimated_credits_per_row}</p>
+            <p className="text-body-xs text-unilog-textMuted">Initial Credits</p>
+            <p className="text-display font-mono text-unilog-text">{initial_credits}</p>
           </div>
         </div>
 
-        <div className="p-3 bg-unilog-primary/5 border border-unilog-primary/20 rounded-lg">
-          <p className="text-body-xs text-unilog-primary/80">Estimated Rows Remaining</p>
-          <p className="text-2xl font-bold text-unilog-primary font-mono">
-            {displayRows !== null ? displayRows : '—'}
+        <div className={`p-3 rounded-lg ${
+          remaining_credits === 0
+            ? 'bg-unilog-destructive/10 border border-unilog-destructive/20'
+            : 'bg-unilog-primary/5 border border-unilog-primary/20'
+        }`}>
+          <p className="text-body-xs text-unilog-textMuted">Free Credits Remaining</p>
+          <p className={`text-2xl font-bold font-mono ${
+            remaining_credits === 0 ? 'text-unilog-destructive' : 'text-unilog-primary'
+          }`}>
+            {remaining_credits}
           </p>
-          <p className="text-body-xs text-unilog-primary/70 mt-1">
-            Based on ~{displayRemaining !== null ? displayRemaining : '?'} credits remaining of {monthly_credit_limit} monthly limit
+          <p className="text-body-xs text-unilog-textMuted/70 mt-1">
+            {remaining_credits === 1 ? '1 free row remaining' : `${remaining_credits} free rows remaining`}
           </p>
         </div>
 

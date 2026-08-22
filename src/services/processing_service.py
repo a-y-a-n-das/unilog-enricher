@@ -12,8 +12,6 @@ from pipeline.extraction.evidence import EvidenceBuilder
 from pipeline.extraction.extraction import ProductExtractor
 from pipeline.llm.factory import get_llm_client
 from pipeline.research.agent import ResearchAgent
-from services.tavily_usage import get_tavily_usage_tracker
-from pipeline.llm.config import get_tavily_monthly_credits
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +78,7 @@ class ProcessingService:
             evidence_builder=self.evidence_builder,
         )
 
-        # Initialize Tavily usage tracker for capacity estimation
-        monthly_limit = get_tavily_monthly_credits()
-        get_tavily_usage_tracker().configure(monthly_limit=monthly_limit)
-
-        logger.info(
-            "Processing service initialized (Tavily monthly limit: %d credits)",
-            monthly_limit,
-        )
+        logger.info("Processing service initialized")
 
     def process(
         self,
@@ -227,16 +218,11 @@ class ProcessingService:
         research_seconds = perf_counter() - start
 
         logger.info(
-            "[ROW %s] Research completed: %d documents in %.2fs (Tavily credits used: %d)",
+            "[ROW %s] Research completed: %d documents in %.2fs",
             record.row_number,
             len(documents),
             research_seconds,
-            research_usage.credits_used,
         )
-
-        # Record actual Tavily credits used
-        if research_usage.credits_used > 0:
-            get_tavily_usage_tracker().record_credits_used(research_usage.credits_used)
 
         # ---------------------------------------------------------
         # Evidence
@@ -251,6 +237,7 @@ class ProcessingService:
 
         evidence = self.evidence_builder.build(
             documents,
+            record=record,
         )
 
         evidence_seconds = perf_counter() - start

@@ -37,12 +37,10 @@ export interface ApiError {
   detail: string;
 }
 
-export interface TavilyUsageResponse {
+export interface CreditsResponse {
+  remaining_credits: number;
+  initial_credits: number;
   credits_used_this_session: number;
-  credits_remaining: number | null;
-  estimated_credits_per_row: number;
-  estimated_rows_remaining: number | null;
-  monthly_credit_limit: number;
   note: string;
 }
 
