@@ -36,7 +36,7 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     env_file:
-      - ./frontend/.env
+      - .env
     depends_on:
       - api
     restart: unless-stopped
