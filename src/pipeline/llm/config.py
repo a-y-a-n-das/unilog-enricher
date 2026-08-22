@@ -7,7 +7,7 @@ DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 DEFAULT_PROVIDER = "nvidia"
 DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_WORKER_CONCURRENCY = 1
-DEFAULT_TAVILY_MONTHLY_CREDITS = 1000
+DEFAULT_EXA_MONTHLY_DOLLAR_LIMIT = 10.0
 
 
 def get_llm_provider() -> str:
@@ -39,18 +39,18 @@ def get_worker_concurrency() -> int:
     return concurrency
 
 
-def get_tavily_monthly_credits() -> int:
-    """Get the monthly Tavily credits limit from environment variable.
+def get_exa_monthly_dollar_limit() -> float:
+    """Get the monthly Exa dollar limit from environment variable.
 
-    Defaults to 1000 (Tavily free Researcher plan).
+    Defaults to 10.0 (approximately 1000 searches at $0.01 each).
     """
-    value = os.getenv("TAVILY_MONTHLY_CREDITS")
+    value = os.getenv("EXA_MONTHLY_DOLLAR_LIMIT")
     if value is None:
-        return DEFAULT_TAVILY_MONTHLY_CREDITS
+        return DEFAULT_EXA_MONTHLY_DOLLAR_LIMIT
     try:
-        credits = int(value)
+        limit = float(value)
     except ValueError:
-        raise ValueError(f"TAVILY_MONTHLY_CREDITS must be an integer, got: {value}")
-    if credits < 0:
-        raise ValueError(f"TAVILY_MONTHLY_CREDITS must be a non-negative integer, got: {credits}")
-    return credits
+        raise ValueError(f"EXA_MONTHLY_DOLLAR_LIMIT must be a number, got: {value}")
+    if limit < 0:
+        raise ValueError(f"EXA_MONTHLY_DOLLAR_LIMIT must be non-negative, got: {limit}")
+    return limit

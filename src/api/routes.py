@@ -24,7 +24,7 @@ from api.models import (
     JobStatusResponse,
     JobListResponse,
     RetryFailedResponse,
-    TavilyUsageResponse,
+    ExaUsageResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -52,10 +52,10 @@ def get_processing_service() -> ProcessingService:
     return ProcessingService()
 
 
-def get_tavily_usage_tracker_dependency():
-    """Dependency to get the global Tavily usage tracker."""
-    from services.tavily_usage import get_tavily_usage_tracker
-    return get_tavily_usage_tracker()
+def get_exa_usage_tracker_dependency():
+    """Dependency to get the global Exa usage tracker."""
+    from services.tavily_usage import get_exa_usage_tracker
+    return get_exa_usage_tracker()
 
 
 def get_worker(processing_service: ProcessingService = Depends(get_processing_service)) -> Worker:
@@ -271,34 +271,34 @@ async def download_job_output(job_id: str) -> FileResponse:
 
 @router.get(
     "/usage",
-    response_model=TavilyUsageResponse,
+    response_model=ExaUsageResponse,
     responses={
         500: {"model": ErrorResponse, "description": "Failed to retrieve usage information"},
     },
 )
-async def get_tavily_usage(
-    tracker=Depends(get_tavily_usage_tracker_dependency),
-) -> TavilyUsageResponse:
-    """Get Tavily API usage and capacity estimation (row-based).
+async def get_exa_usage(
+    tracker=Depends(get_exa_usage_tracker_dependency),
+) -> ExaUsageResponse:
+    """Get Exa API usage and capacity estimation (row-based).
 
-    This endpoint provides informational estimates of Tavily API capacity.
+    This endpoint provides informational estimates of Exa API capacity.
     It does NOT block uploads or processing.
 
     The estimates are based on:
     - Rows processed this session (successful + failed)
-    - Configured monthly credit limit (TAVILY_MONTHLY_CREDITS env var, default 1000)
-    - Estimated credits per row (10 credits = 5 queries × 2 credits per advanced search)
-    - Max rows per month = monthly_limit / credits_per_row
+    - Configured monthly dollar limit (EXA_MONTHLY_DOLLAR_LIMIT env var, default 10.0)
+    - Estimated dollars per row ($0.05 = 5 queries × $0.01 per search)
+    - Max rows per month = monthly_limit / dollars_per_row
 
     This is an INFORMATIONAL estimate only. It does not block uploads,
     processing, or job execution.
     """
     try:
         summary = tracker.get_summary()
-        return TavilyUsageResponse(**summary["tavily"])
+        return ExaUsageResponse(**summary["exa"])
     except Exception as e:
-        logger.exception("Failed to retrieve Tavily usage")
+        logger.exception("Failed to retrieve Exa usage")
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve Tavily usage information",
+            detail="Failed to retrieve Exa usage information",
         )

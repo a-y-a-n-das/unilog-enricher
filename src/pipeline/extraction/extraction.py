@@ -205,7 +205,8 @@ class ProductExtractor:
         prompt = self._load_prompt()
 
         evidence = self.evidence_builder.build(
-            documents
+            documents,
+            record=record,
         )
 
         prompt = prompt.replace(
