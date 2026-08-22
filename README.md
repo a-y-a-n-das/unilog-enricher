@@ -1,11 +1,11 @@
 # UniLog Enricher
 
-Product enrichment pipeline that ingests product data (CSV/XLSX), performs web research using Tavily search, scrapes manufacturer pages and PDFs, and extracts structured product data via LLM.
+Product enrichment pipeline that ingests product data (CSV/XLSX), performs web research using Exa search, scrapes manufacturer pages and PDFs, and extracts structured product data via LLM.
 
 ## What it does
 
 1. **Ingest** — Accepts CSV/XLSX uploads with product rows (manufacturer part number, description, brand, etc.)
-2. **Research** — Generates 5 targeted search queries per row, searches via Tavily (advanced mode, 5 queries/row), selects credible sources
+2. **Research** — Generates 5 targeted search queries per row, searches via Exa, selects credible sources
 3. **Collect** — Downloads and parses manufacturer PDFs, scrapes webpages, follows immediate PDF links only
 4. **Extract** — Feeds input row + evidence to LLM with a strict extraction prompt; outputs structured `ExtractedProduct` JSON
 5. **Output** — Generates CSV/XLSX with enriched product data
@@ -17,16 +17,16 @@ Product enrichment pipeline that ingests product data (CSV/XLSX), performs web r
 │  CSV/XLSX   │────▶│  Job/Row DB  │────▶│  Processing     │────▶│  Enriched    │
 │  Upload     │     │  (PostgreSQL)│     │  Pipeline       │     │  Output      │
 └─────────────┘     └──────────────┘     │  (per row)      │     └──────────────┘
-                                          │  Research →     │
-                                          │  Evidence →     │
-                                          │  Extraction     │
-                                          └─────────────────┘
+                                           │  Research →     │
+                                           │  Evidence →     │
+                                           │  Extraction     │
+                                           └─────────────────┘
 ```
 
 ### Pipeline per row
 
 1. **Query Generation** — LLM generates 5 targeted search queries from input row
-2. **Search** — Tavily advanced search (5 queries, 2 credits each = 10 credits/row)
+2. **Search** — Exa search (5 queries per row)
 3. **Source Selection** — LLM classifies sources (official/manufacturer_document/secondary), filters junk
 4. **Collection** — Downloads PDFs, scrapes webpages, follows immediate PDF links only
 5. **Evidence Building** — Deduplicates, truncates large docs (>100K chars), formats for LLM
@@ -49,12 +49,12 @@ src/
 │   ├── extraction/         # Extraction prompt, evidence builder, ProductExtractor
 │   ├── ingestion/          # Web scraper (Firecrawl), PDF fetcher/parser, resource resolver
 │   ├── llm/                # LLM client (NVIDIA), factory, config, debug logging
-│   ├── research/           # Query gen, Tavily search, source selector, orchestrator
+│   ├── research/           # Query gen, Exa search, source selector, orchestrator
 │   └── input/              # CSV/XLSX loaders
-├── services/               # ProcessingService, Worker, TavilyUsageTracker, JobService
+├── services/               # ProcessingService, Worker, FreeCreditsTracker, JobService
 ├── unilog_enricher/        # FastAPI app, lifespan, middleware
 └── prompts/                # Extraction prompt, query generation, source selection
-frontend/                   # React + Vite + Tailwind (upload, jobs, capacity UI)
+frontend/                   # React + Vite + Tailwind (upload, jobs, credits UI)
 alembic/                    # SQLAlchemy migrations
 compose.yaml                # Docker Compose (app + PostgreSQL)
 Dockerfile                  # Multi-stage build (uv + Python 3.12)
@@ -71,7 +71,7 @@ pyproject.toml              # uv project config
 | GET    | `/api/jobs/{job_id}/rows` | Per-row status |
 | POST   | `/api/jobs/{job_id}/retry-failed` | Requeue failed rows |
 | GET    | `/api/jobs/{job_id}/download` | Download enriched CSV/XLSX |
-| GET    | `/api/usage` | Tavily credits used/remaining, estimated rows remaining |
+| GET    | `/api/credits` | Free credits remaining, initial credits, session usage |
 
 ### Job lifecycle
 
@@ -89,13 +89,11 @@ Environment variables (see `compose.yaml`):
 | `NVIDIA_API_KEY` | Yes | — | NVIDIA NIM API key |
 | `LLM_PROVIDER` | No | `nvidia` | `nvidia` only currently |
 | `LLM_MODEL` | No | `nvidia/nemotron-3-ultra-550b-a55b` | Model name |
-| `TAVILY_API_KEY` | Yes | — | Tavily search API key |
 | `FIRECRAWL_API_KEY` | Yes | — | Firecrawl web scraping |
-| `TAVILY_MONTHLY_CREDITS` | No | `1000` | Monthly credit limit for UI estimate |
+| `EXA_API_KEY` | Yes | — | Exa search API key |
+| `FREE_CREDITS` | No | `100` | Initial free credits (1 credit = 1 attempted row) |
 | `CORS_ORIGINS` | No | `` | Comma-separated origins |
 | `WORKER_CONCURRENCY` | No | `1` | Threads per job |
-| `TAVILY_API_KEY` | Yes | — | Tavily API key |
-| `FIRECRAWL_API_KEY` | Yes | — | Firecrawl API key |
 
 ## Running Locally
 
@@ -103,7 +101,7 @@ Environment variables (see `compose.yaml`):
 
 - Docker + Docker Compose
 - PostgreSQL (via compose)
-- NVIDIA API key, Tavily API key, Firecrawl API key
+- NVIDIA API key, Exa API key, Firecrawl API key
 
 ### Start
 
@@ -200,12 +198,14 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 - Max 5 official PDFs per row, max 5 total PDFs per resolution pass
 - Language-variant deduplication (English preferred)
 
-### Tavily usage tracking
+### Free credits tracking
 
-- Per-row credit tracking via `SearchUsage` (per-request `credits_used` + `credits_remaining`)
-- `/api/usage` endpoint returns session usage + estimated rows remaining
-- `TAVILY_MONTHLY_CREDITS` env var (default 1000) for estimate
-- Estimate: `floor(remaining / 10)` where 10 credits/row (5 queries × 2 credits)
+- Per-row credit tracking: 1 attempted row = 1 credit consumed (regardless of outcome)
+- `/api/credits` endpoint returns remaining credits, initial credits, and session usage
+- `FREE_CREDITS` env var (default 100) sets the initial allowance
+- Credits persist across restarts via `/app/data/free_credits.json`
+- Processing stops when credits reach zero
+- This is an application-level allowance, NOT related to Exa API billing
 
 ### Retry / recovery
 
@@ -223,12 +223,35 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 
 - **LLM provider**: Only NVIDIA (Nemotron) supported via `LLM_PROVIDER=nvidia`
 - **Single LLM call per extraction** — no multi-pass refinement
-- **Tavily advanced only** — basic/fast not configurable
+- **Exa search only** — no alternative search providers
 - **No deep research iterations** — single-pass query → search → select → collect
 - **Firecrawl required** for web scraping (no fallback)
 - **PostgreSQL only** in production (SQLite for tests)
 - **No auth** on API endpoints
 - **No pagination** on `/jobs` or `/jobs/{id}/rows`
+
+## Free Credits Behavior
+
+The application uses a simple free-credit system for row processing:
+
+- **FREE_CREDITS** (default: 100) — initial allowance of free rows
+- **One attempted input row = one credit consumed** — regardless of outcome
+  - Successful extraction → -1 credit
+  - Failed extraction → -1 credit
+  - Exception during processing → -1 credit
+  - Invalid result → -1 credit
+  - Processing failure → -1 credit
+- **No additional consumption** for:
+  - Multiple Exa queries per row
+  - Multiple resources/documents
+  - Multiple extraction retries
+  - Token usage
+  - Actual Exa API billing
+- **Persistence** — remaining credits stored in `/app/data/free_credits.json`, survives restarts
+- **Stop condition** — when remaining credits reach 0, no additional rows are attempted
+- **Batch behavior** — if 10 rows submitted but only 3 credits remain, only 3 rows are processed
+- **Frontend** — displays "X free rows remaining" via `/api/credits` endpoint
+- **Separate from Exa billing** — application free credits are independent of Exa API usage/costs
 
 
 ### Running migrations

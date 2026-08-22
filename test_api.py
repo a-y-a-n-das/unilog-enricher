@@ -265,7 +265,8 @@ def test_env_example_exists():
     content = env_example.read_text()
     assert "NVIDIA_API_KEY=" in content
     assert "FIRECRAWL_API_KEY=" in content
-    assert "TAVILY_API_KEY=" in content
+    assert "EXA_API_KEY=" in content
+    assert "FREE_CREDITS=" in content
     assert "DATABASE_URL=" in content
     assert "LLM_PROVIDER=" in content
     assert "LLM_MODEL=" in content
@@ -278,7 +279,9 @@ def test_env_example_exists():
             # Values should be empty or placeholders only
             # CORS_ORIGINS is allowed to have placeholder URLs
             # WORKER_CONCURRENCY is allowed to have numeric values
-            assert value == "" or value.startswith("nvidia/") or value == "nvidia" or key == "CORS_ORIGINS" or key == "WORKER_CONCURRENCY", \
+            # FREE_CREDITS is allowed to have numeric values
+            # EXA_MONTHLY_DOLLAR_LIMIT is allowed to have numeric values
+            assert value == "" or value.startswith("nvidia/") or value == "nvidia" or key == "CORS_ORIGINS" or key == "WORKER_CONCURRENCY" or key == "FREE_CREDITS" or key == "EXA_MONTHLY_DOLLAR_LIMIT", \
                 f"Unexpected value for {key}: {value}"
 
 

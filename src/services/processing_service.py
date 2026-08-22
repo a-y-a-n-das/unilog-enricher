@@ -12,8 +12,6 @@ from pipeline.extraction.evidence import EvidenceBuilder
 from pipeline.extraction.extraction import ProductExtractor
 from pipeline.llm.factory import get_llm_client
 from pipeline.research.agent import ResearchAgent
-from services.tavily_usage import get_exa_usage_tracker
-from pipeline.llm.config import get_exa_monthly_dollar_limit
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +78,7 @@ class ProcessingService:
             evidence_builder=self.evidence_builder,
         )
 
-        # Initialize Exa usage tracker for capacity estimation
-        monthly_limit = get_exa_monthly_dollar_limit()
-        get_exa_usage_tracker().configure(monthly_limit=monthly_limit)
-
-        logger.info(
-            "Processing service initialized (Exa monthly limit: $%.2f)",
-            monthly_limit,
-        )
+        logger.info("Processing service initialized")
 
     def process(
         self,
@@ -227,16 +218,11 @@ class ProcessingService:
         research_seconds = perf_counter() - start
 
         logger.info(
-            "[ROW %s] Research completed: %d documents in %.2fs (Exa usage: %s)",
+            "[ROW %s] Research completed: %d documents in %.2fs",
             record.row_number,
             len(documents),
             research_seconds,
-            research_usage,
         )
-
-        # Record actual Exa dollars used
-        if research_usage.cost_dollars is not None and research_usage.cost_dollars > 0:
-            get_exa_usage_tracker().record_dollars_used(research_usage.cost_dollars)
 
         # ---------------------------------------------------------
         # Evidence

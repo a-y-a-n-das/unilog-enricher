@@ -50,12 +50,10 @@ class RetryFailedResponse(BaseModel):
     message: str
 
 
-class ExaUsageResponse(BaseModel):
-    rows_processed_this_session: int
-    estimated_rows_remaining: int
-    max_rows_per_month: int
-    estimated_dollars_per_row: float
-    monthly_dollar_limit: float
+class CreditsResponse(BaseModel):
+    remaining_credits: int
+    initial_credits: int
+    credits_used_this_session: int
     note: str
 
 

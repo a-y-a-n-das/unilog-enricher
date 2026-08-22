@@ -18,13 +18,13 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from api.models import (
+    CreditsResponse,
     ErrorResponse,
     JobCreateResponse,
+    JobListResponse,
     JobRowResponse,
     JobStatusResponse,
-    JobListResponse,
     RetryFailedResponse,
-    ExaUsageResponse,
 )
 from api.storage import (
     get_output_file_path,
@@ -37,6 +37,7 @@ from database.models import Job
 from models.input_models import InputRecord
 from pipeline.input.csv import load_input_csv
 from pipeline.input.xlsx import load_input_xlsx
+from services.free_credits import get_free_credits_tracker
 from services.job_service import ValidationError, create_job, get_job_status, retry_failed_rows
 from services.processing_service import ProcessingService
 from services.worker import Worker
@@ -52,10 +53,10 @@ def get_processing_service() -> ProcessingService:
     return ProcessingService()
 
 
-def get_exa_usage_tracker_dependency():
-    """Dependency to get the global Exa usage tracker."""
-    from services.tavily_usage import get_exa_usage_tracker
-    return get_exa_usage_tracker()
+def get_free_credits_tracker_dependency():
+    """Dependency to get the global free credits tracker."""
+    from services.free_credits import get_free_credits_tracker
+    return get_free_credits_tracker()
 
 
 def get_worker(processing_service: ProcessingService = Depends(get_processing_service)) -> Worker:
@@ -270,35 +271,31 @@ async def download_job_output(job_id: str) -> FileResponse:
 
 
 @router.get(
-    "/usage",
-    response_model=ExaUsageResponse,
+    "/credits",
+    response_model=CreditsResponse,
     responses={
-        500: {"model": ErrorResponse, "description": "Failed to retrieve usage information"},
+        500: {"model": ErrorResponse, "description": "Failed to retrieve credits information"},
     },
 )
-async def get_exa_usage(
-    tracker=Depends(get_exa_usage_tracker_dependency),
-) -> ExaUsageResponse:
-    """Get Exa API usage and capacity estimation (row-based).
+async def get_credits(
+    tracker=Depends(get_free_credits_tracker_dependency),
+) -> CreditsResponse:
+    """Get remaining free credits for row processing.
 
-    This endpoint provides informational estimates of Exa API capacity.
-    It does NOT block uploads or processing.
-
-    The estimates are based on:
-    - Rows processed this session (successful + failed)
-    - Configured monthly dollar limit (EXA_MONTHLY_DOLLAR_LIMIT env var, default 10.0)
-    - Estimated dollars per row ($0.05 = 5 queries × $0.01 per search)
-    - Max rows per month = monthly_limit / dollars_per_row
-
-    This is an INFORMATIONAL estimate only. It does not block uploads,
-    processing, or job execution.
+    Each attempted row consumes 1 credit, regardless of outcome.
+    This is an application-level allowance, not related to Exa API billing.
     """
     try:
         summary = tracker.get_summary()
-        return ExaUsageResponse(**summary["exa"])
+        return CreditsResponse(
+            remaining_credits=summary.remaining_credits,
+            initial_credits=summary.initial_credits,
+            credits_used_this_session=summary.credits_used_this_session,
+            note=summary.note,
+        )
     except Exception as e:
-        logger.exception("Failed to retrieve Exa usage")
+        logger.exception("Failed to retrieve credits")
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve Exa usage information",
+            detail="Failed to retrieve credits information",
         )
