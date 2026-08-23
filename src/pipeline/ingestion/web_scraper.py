@@ -4,8 +4,13 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
+import httpx
 
 from models.document_models import Document
+from pipeline.ingestion.firecrawl_limiter import (
+    FirecrawlRateLimitError,
+    get_firecrawl_limiter,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,14 +27,36 @@ class WebScraper:
             )
 
         self.client = FirecrawlApp(api_key=api_key)
+        self._limiter = get_firecrawl_limiter()
 
     def scrape(self, url: str) -> Document:
         self._validate_url(url)
 
-        try:
-            response = self.client.scrape_url(
+        def _do_scrape():
+            return self.client.scrape_url(
                 url=url,
                 formats=["markdown", "links"],
+            )
+
+        try:
+            response = self._limiter.execute_with_retry(_do_scrape, url)
+
+        except FirecrawlRateLimitError as exc:
+            LOGGER.error(
+                "Firecrawl rate limit exhausted for %s after retries: %s",
+                url,
+                exc,
+            )
+            return Document(
+                source="webpage",
+                content="",
+                metadata={
+                    "url": url,
+                    "error": f"rate_limit_exhausted: {exc}",
+                    "scrape_status": "rate_limited",
+                },
+                images=[],
+                links=[],
             )
 
         except Exception as exc:
@@ -44,6 +71,7 @@ class WebScraper:
                 metadata={
                     "url": url,
                     "error": str(exc),
+                    "scrape_status": "failed",
                 },
                 images=[],
                 links=[],
@@ -87,6 +115,7 @@ class WebScraper:
             metadata={
                 "url": url,
                 **metadata,
+                "scrape_status": "success",
             },
             images=images,
             links=links,

@@ -48,6 +48,8 @@ class EvidenceBuilder:
 
         total_raw_chars = 0
         empty_count = 0
+        scrape_failed_count = 0
+        scrape_rate_limited_count = 0
         duplicate_url_count = 0
         duplicate_content_count = 0
         filtered_irrelevant_count = 0
@@ -85,6 +87,35 @@ class EvidenceBuilder:
                 document.source,
             )
 
+            scrape_status = metadata.get("scrape_status", "unknown")
+
+            # -------------------------------------------------
+            # Track scrape failures separately from genuine empty content.
+            # -------------------------------------------------
+            if scrape_status == "rate_limited":
+                scrape_rate_limited_count += 1
+                LOGGER.warning(
+                    "[Evidence] #%d SCRAPE_RATE_LIMITED | type=%s | url=%s",
+                    document_index,
+                    document_type,
+                    url,
+                )
+                # Do NOT skip - include in evidence with status note so LLM knows
+                # this source was unavailable due to rate limiting
+                content = f"[SCRAPE FAILED: Rate limited after retries - {metadata.get('error', 'unknown error')}]"
+
+            elif scrape_status == "failed":
+                scrape_failed_count += 1
+                LOGGER.warning(
+                    "[Evidence] #%d SCRAPE_FAILED | type=%s | url=%s | error=%s",
+                    document_index,
+                    document_type,
+                    url,
+                    metadata.get("error", "unknown"),
+                )
+                # Do NOT skip - include in evidence with status note
+                content = f"[SCRAPE FAILED: {metadata.get('error', 'unknown error')}]"
+
             # -------------------------------------------------
             # Skip excessively large documents (>100K chars).
             # -------------------------------------------------
@@ -101,9 +132,9 @@ class EvidenceBuilder:
                 continue
 
             # -------------------------------------------------
-            # Ignore empty documents.
+            # Ignore genuinely empty documents (successful scrape but no content).
             # -------------------------------------------------
-            if not content:
+            if not content and scrape_status == "success":
                 empty_count += 1
 
                 LOGGER.info(
@@ -220,13 +251,15 @@ class EvidenceBuilder:
 
             LOGGER.info(
                 "[Evidence] Summary: "
-                "input=%d retained=%d empty=%d "
+                "input=%d retained=%d empty=%d scrape_failed=%d scrape_rate_limited=%d "
                 "duplicate_url=%d duplicate_content=%d "
                 "filtered_irrelevant=%d "
                 "raw_chars=%d evidence_chars=%d",
                 len(documents),
                 output_index,
                 empty_count,
+                scrape_failed_count,
+                scrape_rate_limited_count,
                 duplicate_url_count,
                 duplicate_content_count,
                 filtered_irrelevant_count,
@@ -245,13 +278,15 @@ class EvidenceBuilder:
         # -----------------------------------------------------
         LOGGER.info(
             "[Evidence] Summary: "
-            "input=%d retained=%d empty=%d "
+            "input=%d retained=%d empty=%d scrape_failed=%d scrape_rate_limited=%d "
             "duplicate_url=%d duplicate_content=%d "
             "filtered_irrelevant=%d "
             "raw_chars=%d evidence_chars=%d",
             len(documents),
             output_index,
             empty_count,
+            scrape_failed_count,
+            scrape_rate_limited_count,
             duplicate_url_count,
             duplicate_content_count,
             filtered_irrelevant_count,

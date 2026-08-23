@@ -15,6 +15,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
+      # Firecrawl trial mode protection (shared rate limiter across all workers)
+      - FIRECRAWL_TRIAL=${FIRECRAWL_TRIAL:-true}
+      - FIRECRAWL_TRIAL_RPM=${FIRECRAWL_TRIAL_RPM:-10}
     env_file:
       - .env
     volumes:
