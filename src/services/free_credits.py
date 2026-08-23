@@ -1,4 +1,4 @@
-"""Application-level free credits tracker for row processing allowance."""
+"""Application-level free credits tracker for row processing tracking (informational only)."""
 
 import json
 import logging
@@ -24,17 +24,14 @@ class FreeCreditsSummary:
     @property
     def note(self) -> str:
         return (
-            "Each attempted row consumes 1 free credit. "
-            "Successful and failed rows both consume a credit. "
-            "This is an application-level allowance, not related to Exa API billing."
+            "This is a free trial with limited row processing. "
+            "Each attempted row uses 1 credit. "
+            "Upgrade for unlimited processing."
         )
 
 
 class FreeCreditsTracker:
-    """Thread-safe tracker for application free credits.
-
-    One attempted input row = one credit consumed, regardless of outcome.
-    """
+    """Thread-safe tracker for application free credits (informational only, does not block processing)."""
 
     def __init__(self, initial_credits: int | None = None) -> None:
         self._lock = Lock()
@@ -79,10 +76,7 @@ class FreeCreditsTracker:
             LOGGER.error("Failed to save credits to %s: %s", CREDITS_FILE, e)
 
     def configure(self, initial_credits: int | None = None) -> None:
-        """Configure the tracker with initial credits.
-
-        Only sets initial credits if not already configured from env/file.
-        """
+        """Configure the tracker with initial credits."""
         with self._lock:
             if initial_credits is not None:
                 self._initial_credits = initial_credits
@@ -91,25 +85,22 @@ class FreeCreditsTracker:
                     self._save_remaining_credits()
 
     def can_process_row(self) -> bool:
-        """Check if there are credits available to process a row."""
-        with self._lock:
-            return self._remaining_credits > 0
+        """Always returns True - tracking is informational only, doesn't block processing."""
+        return True
 
     def consume_credit(self) -> bool:
-        """Consume one credit for an attempted row.
+        """Consume one credit for an attempted row (informational only).
 
-        Returns True if credit was consumed, False if no credits remaining.
+        Always returns True - credits can go negative for tracking purposes.
         """
         with self._lock:
-            if self._remaining_credits <= 0:
-                return False
             self._remaining_credits -= 1
             self._credits_used_this_session += 1
             self._save_remaining_credits()
             return True
 
     def get_remaining(self) -> int:
-        """Get remaining credits."""
+        """Get remaining credits (can be negative)."""
         with self._lock:
             return self._remaining_credits
 
@@ -135,10 +126,7 @@ _free_credits_tracker: FreeCreditsTracker | None = None
 
 
 def get_free_credits_tracker() -> FreeCreditsTracker:
-    """Get the global free credits tracker instance.
-
-    Creates a new tracker on first call with configuration from environment.
-    """
+    """Get the global free credits tracker instance."""
     global _free_credits_tracker
     if _free_credits_tracker is None:
         _free_credits_tracker = FreeCreditsTracker()

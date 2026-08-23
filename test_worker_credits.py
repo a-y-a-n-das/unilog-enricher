@@ -23,8 +23,8 @@ class TestWorkerFreeCredits:
 
     @patch("services.worker.repositories")
     @patch("services.worker.get_worker_concurrency", return_value=1)
-    def test_worker_stops_when_credits_exhausted(self, mock_concurrency, mock_repos):
-        """Test that worker stops processing when credits reach zero."""
+    def test_worker_processes_all_rows_when_credits_exhausted(self, mock_concurrency, mock_repos):
+        """Test that worker processes all rows even when credits exhausted (informational only)."""
         # Setup mock job
         job = MagicMock(spec=Job)
         job.id = "test-job-id"
@@ -40,7 +40,6 @@ class TestWorkerFreeCredits:
             row.input_data = {"data": {"Mfg_Part_Num": f"PART-{i}"}}
             rows.append(row)
 
-        # Track which rows were claimed - return one at a time
         call_count = [0]
 
         def claim_next_pending_row(job_id):
@@ -63,12 +62,12 @@ class TestWorkerFreeCredits:
             processing_service = MagicMock()
             worker = Worker(processing_service)
 
-            # Run job - should only process 3 rows
+            # Run job - should process ALL 5 rows (no blocking)
             worker.run_job("test-job-id")
 
-            # Verify only 3 rows were processed (credit limit)
-            assert processing_service.process.call_count == 3
-            assert tracker.get_remaining() == 0
+            # Verify all 5 rows were processed (no credit blocking)
+            assert processing_service.process.call_count == 5
+            assert tracker.get_remaining() == -2  # Went negative
 
     @patch("services.worker.repositories")
     @patch("services.worker.get_worker_concurrency", return_value=1)

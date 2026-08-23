@@ -75,8 +75,8 @@ class TestFreeCreditsTracker:
         assert tracker.get_remaining() == 5
         assert tracker.get_summary().credits_used_this_session == 5
 
-    def test_processing_stops_when_credits_reach_zero(self):
-        """Test that can_process_row returns False when credits exhausted."""
+    def test_processing_continues_when_credits_exhausted(self):
+        """Test that can_process_row always returns True (informational only)."""
         tracker = FreeCreditsTracker(initial_credits=3)
         assert tracker.can_process_row() is True
         tracker.consume_credit()
@@ -84,18 +84,19 @@ class TestFreeCreditsTracker:
         tracker.consume_credit()
         assert tracker.can_process_row() is True
         tracker.consume_credit()
-        assert tracker.can_process_row() is False
-        assert tracker.consume_credit() is False  # No credit consumed
+        assert tracker.can_process_row() is True  # Still True - doesn't block
+        assert tracker.consume_credit() is True  # Still consumes (goes negative)
+        assert tracker.get_remaining() == -1
 
-    def test_submitting_more_rows_than_credits_processes_only_available(self):
-        """Test that only available credits worth of rows are processed."""
+    def test_submitting_more_rows_than_credits_processes_all(self):
+        """Test that all rows are processed (credits go negative, no blocking)."""
         tracker = FreeCreditsTracker(initial_credits=3)
         processed = 0
         for _ in range(10):  # Try to process 10 rows
             if tracker.consume_credit():
                 processed += 1
-        assert processed == 3
-        assert tracker.get_remaining() == 0
+        assert processed == 10  # All processed, no blocking
+        assert tracker.get_remaining() == -7  # Went negative
 
     def test_counter_persists_across_restarts(self):
         """Test that counter survives restart via file persistence."""

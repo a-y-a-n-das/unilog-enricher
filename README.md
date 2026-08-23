@@ -198,14 +198,15 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 - Max 5 official PDFs per row, max 5 total PDFs per resolution pass
 - Language-variant deduplication (English preferred)
 
-### Free credits tracking
+### Free trial credits tracking (informational only)
 
 - Per-row credit tracking: 1 attempted row = 1 credit consumed (regardless of outcome)
 - `/api/credits` endpoint returns remaining credits, initial credits, and session usage
-- `FREE_CREDITS` env var (default 100) sets the initial allowance
+- `FREE_CREDITS` env var (default 100) sets the initial trial allowance
 - Credits persist across restarts via `/app/data/free_credits.json`
-- Processing stops when credits reach zero
-- This is an application-level allowance, NOT related to Exa API billing
+- **Does NOT block processing** — credits can go negative; tracking is for display/reminder only
+- Frontend shows warning when trial credits exhausted, but jobs continue
+- Separate from API billing — this is a free trial limitation, not related to Exa/Firecrawl costs
 
 ### Retry / recovery
 
@@ -230,11 +231,11 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 - **No auth** on API endpoints
 - **No pagination** on `/jobs` or `/jobs/{id}/rows`
 
-## Free Credits Behavior
+## Free Trial Credits Behavior (Informational Only)
 
-The application uses a simple free-credit system for row processing:
+The application tracks free trial credits for display purposes — **does not block processing**:
 
-- **FREE_CREDITS** (default: 100) — initial allowance of free rows
+- **FREE_CREDITS** (default: 100) — initial trial allowance
 - **One attempted input row = one credit consumed** — regardless of outcome
   - Successful extraction → -1 credit
   - Failed extraction → -1 credit
@@ -242,16 +243,14 @@ The application uses a simple free-credit system for row processing:
   - Invalid result → -1 credit
   - Processing failure → -1 credit
 - **No additional consumption** for:
-  - Multiple Exa queries per row
+  - Multiple search queries per row
   - Multiple resources/documents
   - Multiple extraction retries
   - Token usage
-  - Actual Exa API billing
 - **Persistence** — remaining credits stored in `/app/data/free_credits.json`, survives restarts
-- **Stop condition** — when remaining credits reach 0, no additional rows are attempted
-- **Batch behavior** — if 10 rows submitted but only 3 credits remain, only 3 rows are processed
-- **Frontend** — displays "X free rows remaining" via `/api/credits` endpoint
-- **Separate from Exa billing** — application free credits are independent of Exa API usage/costs
+- **No stop condition** — jobs continue even when credits exhausted (counter goes negative)
+- **Frontend** — displays warning when trial credits exhausted; shows "upgrade for unlimited" message
+- **Separate from API costs** — trial credits are independent of Exa/Firecrawl API usage
 
 
 ### Running migrations
