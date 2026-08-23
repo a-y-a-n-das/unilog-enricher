@@ -203,7 +203,7 @@ Enriched CSV/XLSX with all input columns + extracted fields:
 - Per-row credit tracking: 1 attempted row = 1 credit consumed (regardless of outcome)
 - `/api/credits` endpoint returns remaining credits, initial credits, and session usage
 - `FREE_CREDITS` env var (default 100) sets the initial trial allowance
-- Credits persist across restarts via `/app/data/free_credits.json`
+- **No persistence** — resets to `FREE_CREDITS` env value on every container startup
 - **Does NOT block processing** — credits can go negative; tracking is for display/reminder only
 - Frontend shows warning when trial credits exhausted, but jobs continue
 - Separate from API billing — this is a free trial limitation, not related to Exa/Firecrawl costs

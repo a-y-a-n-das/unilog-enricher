@@ -1,16 +1,13 @@
-"""Application-level free credits tracker for row processing tracking (informational only)."""
+"""Application-level free credits tracker for row processing tracking (informational only, no persistence)."""
 
-import json
 import logging
 import os
 from dataclasses import dataclass
-from pathlib import Path
 from threading import Lock
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_FREE_CREDITS = 100
-CREDITS_FILE = Path("/app/data/free_credits.json")
 
 
 @dataclass
@@ -31,12 +28,15 @@ class FreeCreditsSummary:
 
 
 class FreeCreditsTracker:
-    """Thread-safe tracker for application free credits (informational only, does not block processing)."""
+    """Thread-safe tracker for application free credits (informational only, no persistence).
+
+    Resets to FREE_CREDITS env value on every startup.
+    """
 
     def __init__(self, initial_credits: int | None = None) -> None:
         self._lock = Lock()
         self._initial_credits = initial_credits or self._load_initial_credits()
-        self._remaining_credits = self._load_remaining_credits()
+        self._remaining_credits = self._initial_credits
         self._credits_used_this_session = 0
 
     def _load_initial_credits(self) -> int:
@@ -53,36 +53,12 @@ class FreeCreditsTracker:
                 LOGGER.warning("Invalid FREE_CREDITS value: %s, using default %d", value, DEFAULT_FREE_CREDITS)
         return DEFAULT_FREE_CREDITS
 
-    def _load_remaining_credits(self) -> int:
-        """Load remaining credits from persistent storage."""
-        if CREDITS_FILE.exists():
-            try:
-                with CREDITS_FILE.open("r") as f:
-                    data = json.load(f)
-                    remaining = data.get("remaining_credits")
-                    if isinstance(remaining, int):
-                        return max(0, remaining)
-            except (json.JSONDecodeError, OSError) as e:
-                LOGGER.warning("Failed to load credits from %s: %s", CREDITS_FILE, e)
-        return self._initial_credits
-
-    def _save_remaining_credits(self) -> None:
-        """Save remaining credits to persistent storage."""
-        try:
-            CREDITS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with CREDITS_FILE.open("w") as f:
-                json.dump({"remaining_credits": self._remaining_credits}, f)
-        except OSError as e:
-            LOGGER.error("Failed to save credits to %s: %s", CREDITS_FILE, e)
-
     def configure(self, initial_credits: int | None = None) -> None:
         """Configure the tracker with initial credits."""
         with self._lock:
             if initial_credits is not None:
                 self._initial_credits = initial_credits
-                if self._remaining_credits > initial_credits:
-                    self._remaining_credits = initial_credits
-                    self._save_remaining_credits()
+                self._remaining_credits = initial_credits
 
     def can_process_row(self) -> bool:
         """Always returns True - tracking is informational only, doesn't block processing."""
@@ -96,7 +72,6 @@ class FreeCreditsTracker:
         with self._lock:
             self._remaining_credits -= 1
             self._credits_used_this_session += 1
-            self._save_remaining_credits()
             return True
 
     def get_remaining(self) -> int:
@@ -118,7 +93,6 @@ class FreeCreditsTracker:
         with self._lock:
             self._remaining_credits = self._initial_credits
             self._credits_used_this_session = 0
-            self._save_remaining_credits()
 
 
 # Module-level singleton

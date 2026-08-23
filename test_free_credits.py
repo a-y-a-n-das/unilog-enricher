@@ -98,21 +98,18 @@ class TestFreeCreditsTracker:
         assert processed == 10  # All processed, no blocking
         assert tracker.get_remaining() == -7  # Went negative
 
-    def test_counter_persists_across_restarts(self):
-        """Test that counter survives restart via file persistence."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            credits_file = Path(tmpdir) / "free_credits.json"
-            with patch("services.free_credits.CREDITS_FILE", credits_file):
-                # First tracker instance
-                tracker1 = FreeCreditsTracker(initial_credits=10)
-                tracker1.consume_credit()
-                tracker1.consume_credit()
-                assert tracker1.get_remaining() == 8
+    def test_counter_resets_on_new_instance(self):
+        """Test that new tracker instance resets to initial credits (no persistence)."""
+        # First tracker instance
+        tracker1 = FreeCreditsTracker(initial_credits=10)
+        tracker1.consume_credit()
+        tracker1.consume_credit()
+        assert tracker1.get_remaining() == 8
 
-                # Simulate restart - new tracker instance
-                tracker2 = FreeCreditsTracker(initial_credits=10)
-                assert tracker2.get_remaining() == 8  # Loaded from file
-                assert tracker2._initial_credits == 10
+        # Simulate restart - new tracker instance should reset to initial
+        tracker2 = FreeCreditsTracker(initial_credits=10)
+        assert tracker2.get_remaining() == 10  # Reset to initial
+        assert tracker2._initial_credits == 10
 
     def test_counter_does_not_reset_to_initial_on_request(self):
         """Test that remaining counter doesn't reset to initial on every request."""
@@ -166,7 +163,7 @@ class TestFreeCreditsTracker:
         tracker = FreeCreditsTracker(initial_credits=10)
         tracker.configure(initial_credits=20)
         assert tracker._initial_credits == 20
-        assert tracker.get_remaining() == 10  # Remaining unchanged if less than new initial
+        assert tracker.get_remaining() == 20  # Remaining updated to new initial
 
     def test_configure_does_not_increase_remaining_above_initial(self):
         """Test that configure caps remaining at new initial."""
