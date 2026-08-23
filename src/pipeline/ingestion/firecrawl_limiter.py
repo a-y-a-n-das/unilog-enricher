@@ -8,6 +8,12 @@ import httpx
 
 LOGGER = logging.getLogger(__name__)
 
+# Try to import firecrawl's RateLimitError for proper 429 handling
+try:
+    from firecrawl.v2.utils.error_handler import RateLimitError as FirecrawlSDKRateLimitError
+except ImportError:
+    FirecrawlSDKRateLimitError = None
+
 # Hardcoded defaults (not configurable via env)
 DEFAULT_TRIAL_RPM = 10
 DEFAULT_TRIAL_CONCURRENT = 2
@@ -111,6 +117,27 @@ class FirecrawlRateLimiter:
 
                 LOGGER.warning(
                     "Firecrawl 429 for %s (attempt %d/%d), retrying in %.1fs",
+                    url,
+                    attempt + 1,
+                    self.max_retries + 1,
+                    retry_after,
+                )
+                time.sleep(retry_after)
+
+            except FirecrawlSDKRateLimitError as e:
+                # Convert Firecrawl SDK's RateLimitError to our exception for retry logic
+                last_error = FirecrawlRateLimitError(
+                    f"Firecrawl SDK rate limit: {e}",
+                    response=getattr(e, 'response', None),
+                )
+                self.release()
+
+                retry_after = self._get_retry_after(last_error.response)
+                if retry_after is None:
+                    retry_after = self.base_backoff * (2 ** attempt)
+
+                LOGGER.warning(
+                    "Firecrawl SDK 429 for %s (attempt %d/%d), retrying in %.1fs",
                     url,
                     attempt + 1,
                     self.max_retries + 1,
