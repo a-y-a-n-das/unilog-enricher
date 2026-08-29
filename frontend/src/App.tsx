@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { AppShell } from "./components/layout/AppShell";
 import { Dashboard } from "./pages/Dashboard";
 import { NewJob } from "./pages/NewJob";
@@ -17,6 +18,7 @@ export function App() {
 
         </Route>
       </Routes>
+      <Analytics />
     </BrowserRouter>
   );
 }
