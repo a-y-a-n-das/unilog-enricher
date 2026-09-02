@@ -228,7 +228,7 @@ async def download_job_output(job_id: str) -> FileResponse:
             raise HTTPException(status_code=404, detail="Output file not found")
 
         short_job_id = str(job.id)[:8]
-        ext = ".xlsx" if job.input_format == "xlsx" else ".csv"
+        ext = ".xlsx"
         download_name = f"enriched_{short_job_id}{ext}"
 
         return FileResponse(
@@ -236,8 +236,6 @@ async def download_job_output(job_id: str) -> FileResponse:
             filename=download_name,
             media_type=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                if job.input_format == "xlsx"
-                else "text/csv"
             ),
         )
 
@@ -248,7 +246,7 @@ async def download_job_output(job_id: str) -> FileResponse:
         raise HTTPException(status_code=409, detail="No processed rows available yet")
 
     short_job_id = str(job.id)[:8]
-    ext = ".xlsx" if job.input_format == "xlsx" else ".csv"
+    ext = ".xlsx"
     download_name = f"enriched_{short_job_id}{ext}"
 
     # Clean up temp file after response is sent

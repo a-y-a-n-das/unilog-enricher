@@ -43,7 +43,7 @@ def save_upload_file(job_id: str, original_filename: str, content: bytes) -> Pat
 def get_output_file_path(job_id: str, input_filename: str, input_format: str) -> Path:
     base = Path(input_filename).stem
     base = sanitize_filename(base)
-    ext = ".xlsx" if input_format == "xlsx" else ".csv"
+    ext = ".xlsx"
     output_name = f"{base}_enriched{ext}"
     return get_job_output_dir(job_id) / output_name
 

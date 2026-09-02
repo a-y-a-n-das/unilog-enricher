@@ -529,8 +529,8 @@ def test_header_formatting_preserved():
             assert cell.fill is not None
 
 
-def test_csv_partial_output():
-    """Test partial output for CSV format uses model-defined headers."""
+def test_xlsx_partial_output():
+    """Test partial output always uses XLSX format regardless of input format."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         input_path = tmp_path / "test_input.csv"
@@ -552,13 +552,13 @@ def test_csv_partial_output():
         
         assert partial_path is not None
         assert partial_path.exists()
-        assert partial_path.suffix == ".csv"
+        assert partial_path.suffix == ".xlsx"
         
-        content = partial_path.read_text()
-        lines = content.strip().split("\n")
-        headers = lines[0].split(",")
+        wb_out = openpyxl.load_workbook(partial_path)
+        ws_output = wb_out["Output"]
+        headers = [cell.value for cell in ws_output[1]]
         
-        # CSV output: row_number + input columns + status + error_message + OUTPUT_HEADERS
+        # XLSX output: row_number + input columns + status + error_message + OUTPUT_HEADERS
         assert "row_number" in headers
         assert "product_name" in headers
         assert "status" in headers

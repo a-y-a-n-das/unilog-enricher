@@ -604,7 +604,7 @@ def generate_partial_output(job_id: str) -> Path | None:
                         seen.add(key)
                         input_headers.append(key)
 
-        suffix = ".xlsx" if job.input_format == "xlsx" else ".csv"
+        suffix = ".xlsx"
 
         with tempfile.NamedTemporaryFile(
             suffix=suffix,
@@ -612,98 +612,13 @@ def generate_partial_output(job_id: str) -> Path | None:
         ) as tmp:
             temp_path = Path(tmp.name)
 
-        if job.input_format == "xlsx":
-            wb = _build_workbook(
-                job,
-                rows,
-                input_headers,
-            )
+        wb = _build_workbook(
+            job,
+            rows,
+            input_headers,
+        )
 
-            wb.save(temp_path)
-
-        else:
-            # CSV output
-            output_headers = OUTPUT_HEADERS
-            header_to_field = OUTPUT_HEADER_TO_FIELD
-
-            fieldnames = (
-                ["row_number"]
-                + input_headers
-                + ["status", "error_message"]
-                + output_headers
-            )
-
-            with temp_path.open(
-                "w",
-                newline="",
-                encoding="utf-8",
-            ) as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=fieldnames,
-                )
-
-                writer.writeheader()
-
-                for row in rows:
-                    row_data = {
-                        "row_number": row.row_number,
-                        "status": row.status,
-                    }
-
-                    if row.input_data:
-                        for key in input_headers:
-                            row_data[key] = row.input_data.get(
-                                key,
-                                "",
-                            )
-
-                    if row.result_data and row.status in (
-                        "completed",
-                        "failed",
-                    ):
-                        for header in output_headers:
-                            field_path = header_to_field.get(header)
-
-                            if field_path:
-                                if (
-                                    field_path.startswith(
-                                        "item_features["
-                                    )
-                                    or field_path.startswith(
-                                        "attributes["
-                                    )
-                                ):
-                                    value = _get_nested_value(
-                                        row.result_data,
-                                        field_path,
-                                    )
-
-                                    if field_path.endswith(".value"):
-                                        row_data[header] = (
-                                            _extract_value_from_field(
-                                                value
-                                            )
-                                        )
-                                    else:
-                                        row_data[header] = (
-                                            str(value)
-                                            if value is not None
-                                            else ""
-                                        )
-
-                                else:
-                                    field_data = row.result_data.get(
-                                        field_path
-                                    )
-
-                                    row_data[header] = (
-                                        _extract_value_from_field(
-                                            field_data
-                                        )
-                                    )
-
-                    writer.writerow(row_data)
+        wb.save(temp_path)
 
         return temp_path
 

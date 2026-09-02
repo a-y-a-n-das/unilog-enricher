@@ -442,7 +442,7 @@ def test_download_filename_deterministic(mock_dependencies):
     
     # Filename should follow pattern: enriched_<8-char-job-id>.<ext>
     short_job_id = str(job.id)[:8]
-    expected_pattern = f"enriched_{short_job_id}.csv"
+    expected_pattern = f"enriched_{short_job_id}.xlsx"
     assert filename == expected_pattern, f"Expected {expected_pattern}, got {filename}"
     
     # Verify no user-provided filename parts in download name
