@@ -73,7 +73,8 @@ export function JobDetails() {
     if (!job || downloading) return;
     setDownloading(true);
     try {
-      await jobsApi.downloadJob(job.job_id, `enriched-${job.input_filename}`);
+      const inputStem = job.input_filename.replace(/\.[^.]+$/, "");
+      await jobsApi.downloadJob(job.job_id, `enriched-${inputStem}.xlsx`);
     } catch (err) {
       if (isApiError(err)) {
         setError(err.detail);

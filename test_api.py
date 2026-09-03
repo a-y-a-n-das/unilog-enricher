@@ -193,7 +193,10 @@ def test_get_nonexistent_job_rows():
 def test_download_missing_output(mock_dependencies):
     job_id = test_upload_valid_csv(mock_dependencies)
     response = client.get(f"/api/jobs/{job_id}/download")
-    assert response.status_code == 409
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 def test_path_traversal_blocked(mock_dependencies):

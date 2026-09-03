@@ -161,8 +161,7 @@ def test_generate_output_xlsx_sheet_structure():
         
         wb_out = openpyxl.load_workbook(output_path)
         
-        assert "Input" in wb_out.sheetnames
-        assert "Output" in wb_out.sheetnames
+        assert wb_out.sheetnames == ["Input", "Output", "Conflicts"]
         
         ws_input = wb_out["Input"]
         assert ws_input.cell(row=1, column=1).value == "row_number"
@@ -172,14 +171,14 @@ def test_generate_output_xlsx_sheet_structure():
         ws_output = wb_out["Output"]
         output_headers = [cell.value for cell in ws_output[1]]
         
-        assert output_headers == OUTPUT_HEADERS
-        assert "row_number" not in output_headers
+        assert output_headers == ["row_number"] + OUTPUT_HEADERS
         assert "status" not in output_headers
         assert "error_message" not in output_headers
         assert not any(h.startswith("result_") for h in output_headers)
         assert len(output_headers) == len(set(output_headers))
         
         row_values = [cell.value for cell in ws_output[2]]
+        assert row_values[output_headers.index("row_number")] == 2
         assert row_values[output_headers.index("MFR URL")] == "https://mfr.com"
         assert row_values[output_headers.index("PART_NUMBER")] == "PN-123"
 
@@ -369,9 +368,8 @@ def test_generate_partial_output():
         
         ws_output = wb_out["Output"]
         output_headers = [cell.value for cell in ws_output[1]]
-        
-        assert output_headers == OUTPUT_HEADERS
-        assert "row_number" not in output_headers
+
+        assert output_headers == ["row_number"] + OUTPUT_HEADERS
         assert "status" not in output_headers
         assert "error_message" not in output_headers
         
@@ -419,6 +417,47 @@ def test_partial_output_reflects_live_database_state():
         assert row2_values[headers2.index("MFR URL")] != "https://old.example.com"
 
 
+def test_output_regeneration_includes_newly_completed_rows():
+    """Each export reflects all currently exportable database rows."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        records = [
+            InputRecord(row_number=i, data={"product_name": f"Product {i}"})
+            for i in range(1, 6)
+        ]
+        job = _setup_job_with_input_sheet(tmp_path, ["product_name"], records)
+
+        with SessionLocal() as session:
+            rows = (
+                session.query(JobRow)
+                .filter(JobRow.job_id == job.id)
+                .order_by(JobRow.row_number)
+                .all()
+            )
+            for row in rows[:2]:
+                row.status = "completed"
+                row.result_data = {"mfr_url": {"value": f"https://mfr{row.row_number}.com"}}
+            session.commit()
+
+        first = openpyxl.load_workbook(generate_output(str(job.id)))
+        assert first["Output"].max_row == 3
+
+        with SessionLocal() as session:
+            rows = (
+                session.query(JobRow)
+                .filter(JobRow.job_id == job.id)
+                .order_by(JobRow.row_number)
+                .all()
+            )
+            for row in rows[2:]:
+                row.status = "completed"
+                row.result_data = {"mfr_url": {"value": f"https://mfr{row.row_number}.com"}}
+            session.commit()
+
+        second = openpyxl.load_workbook(generate_output(str(job.id)))
+        assert second["Output"].max_row == 6
+
+
 def test_partial_output_new_conflicts_appear():
     """Test that newly detected conflicts appear in subsequent partial exports."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -431,10 +470,10 @@ def test_partial_output_new_conflicts_appear():
         # Add completed row WITHOUT conflict initially
         _add_completed_row(job, 2, {"product_name": "Test Product"}, {"part_number": {"value": "PN-123"}})
         
-        # First partial - no conflicts
+        # First partial - no conflicts, but the sheet is always present.
         partial1 = generate_partial_output(str(job.id))
         wb1 = openpyxl.load_workbook(partial1)
-        assert "Conflicts" not in wb1.sheetnames
+        assert wb1.sheetnames == ["Input", "Output", "Conflicts"]
         
         # Update JobRow to ADD a conflict
         _update_row_result(job, 2, {
@@ -450,7 +489,7 @@ def test_partial_output_new_conflicts_appear():
             }
         })
         
-        # Second partial - Conflicts sheet should now appear
+        # Second partial - current conflict data is reflected.
         partial2 = generate_partial_output(str(job.id))
         wb2 = openpyxl.load_workbook(partial2)
         assert "Conflicts" in wb2.sheetnames
@@ -519,9 +558,9 @@ def test_header_formatting_preserved():
         output_path = generate_output(str(job.id))
         
         wb_out = openpyxl.load_workbook(output_path)
-        ws_output = wb_out["Output"]
+        ws_output = wb_out["Input"]
         
-        # Headers are in row 1
+        # Input headers preserve the source workbook styling.
         for cell in ws_output[1]:
             assert cell.font.bold == True
             assert cell.font.color is not None
@@ -558,11 +597,11 @@ def test_xlsx_partial_output():
         ws_output = wb_out["Output"]
         headers = [cell.value for cell in ws_output[1]]
         
-        # XLSX output: row_number + input columns + status + error_message + OUTPUT_HEADERS
+        # XLSX output: row_number + OUTPUT_HEADERS
         assert "row_number" in headers
-        assert "product_name" in headers
-        assert "status" in headers
-        assert "error_message" in headers
+        assert "product_name" not in headers
+        assert "status" not in headers
+        assert "error_message" not in headers
         assert "MFR URL" in headers
         assert not any(h.startswith("result_") for h in headers)
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -307,216 +306,97 @@ def _build_workbook(
     """Build the complete workbook with Input, Output, and Conflicts sheets."""
     original_path = Path(job.input_file_path)
 
+    template_wb = None
     if job.input_format == "xlsx":
         if not original_path.exists():
             raise FileNotFoundError(
                 f"Original input file not found: {original_path}"
             )
-
-        # Load template to copy styles
         template_wb = openpyxl.load_workbook(original_path)
 
-        # Create new workbook
-        wb = openpyxl.Workbook()
+    wb = openpyxl.Workbook()
+    template_ws = (
+        template_wb[template_wb.sheetnames[0]]
+        if template_wb and template_wb.sheetnames
+        else None
+    )
 
-        # Rename the default worksheet to Input
-        ws_input = wb.active
-        ws_input.title = "Input"
+    # Input sheet contains every current database row.
+    ws_input = wb.active
+    ws_input.title = "Input"
+    input_sheet_headers = ["row_number"] + input_headers
+    ws_input.append(input_sheet_headers)
 
-        for row in rows:
-            row_data = {"row_number": row.row_number}
+    fallback_style_cell = None
+    if template_ws is not None:
+        for col_idx in range(1, template_ws.max_column + 1):
+            source_cell = template_ws.cell(row=1, column=col_idx)
+            if source_cell.has_style:
+                fallback_style_cell = source_cell
+                break
 
-            if row.input_data:
-                for key in input_headers:
-                    row_data[key] = row.input_data.get(key, "")
-
-            ws_input.append(
-                [
-                    row_data.get(key, "")
-                    for key in ["row_number"] + input_headers
-                ]
-            )
-
-        # Output sheet - FIXED schema from ExtractedProduct model
-        output_headers = OUTPUT_HEADERS
-        header_to_field = OUTPUT_HEADER_TO_FIELD
-
-        ws_output = wb.create_sheet("Output")
-        ws_output.append(output_headers)
-
-        # Copy header styles from template first row, column by column.
-        # The Output schema itself always comes from ExtractedProduct.
-        template_ws = (
-            template_wb[template_wb.sheetnames[0]]
-            if template_wb.sheetnames
-            else None
-        )
-
-        # Find the first styled header cell as a fallback template.
-        fallback_style_cell = None
-
+    for col_idx in range(1, len(input_sheet_headers) + 1):
+        target_cell = ws_input.cell(row=1, column=col_idx)
         if template_ws is not None:
-            for col_idx in range(1, template_ws.max_column + 1):
-                source_cell = template_ws.cell(row=1, column=col_idx)
-                if source_cell.has_style:
-                    fallback_style_cell = source_cell
-                    break
-
-        for col_idx in range(1, len(output_headers) + 1):
-            target_cell = ws_output.cell(row=1, column=col_idx)
-
-            if template_ws is not None:
-                source_cell = template_ws.cell(row=1, column=col_idx)
-
-                # Prefer the formatting of the matching source column.
-                if source_cell.has_style:
-                    _copy_cell_style(source_cell, target_cell)
-                    continue
-
-            # If the matching source column has no explicit style,
-            # use the first styled header cell as the common header style.
-            if fallback_style_cell is not None:
-                _copy_cell_style(fallback_style_cell, target_cell)
-            else:
-                target_cell.font = Font(bold=True)
-
-        for row in rows:
-            if row.status not in ("completed", "failed") or not row.result_data:
+            source_cell = template_ws.cell(row=1, column=col_idx)
+            if source_cell.has_style:
+                _copy_cell_style(source_cell, target_cell)
                 continue
+        if fallback_style_cell is not None:
+            _copy_cell_style(fallback_style_cell, target_cell)
+            continue
+        target_cell.font = Font(bold=True)
 
-            row_values = _build_output_row_data(
-                row,
-                output_headers,
-                header_to_field,
-            )
-
-            ws_output.append(row_values)
-
-        # Conflicts sheet
-        conflicts = _collect_conflicts(rows)
-
-        if conflicts:
-            ws_conflicts = wb.create_sheet("Conflicts")
-
-            conflict_headers = [
-                "row_number",
-                "field",
-                "selected_value",
-                "selected_uom",
-                "selected_source",
-                "conflicting_value",
-                "conflicting_uom",
-                "conflicting_source",
-                "recommendation",
+    for row in rows:
+        ws_input.append(
+            [
+                row.row_number,
+                *[
+                    row.input_data.get(key, "") if row.input_data else ""
+                    for key in input_headers
+                ],
             ]
-
-            ws_conflicts.append(conflict_headers)
-
-            for col_idx in range(1, len(conflict_headers) + 1):
-                ws_conflicts.cell(
-                    row=1,
-                    column=col_idx,
-                ).font = Font(bold=True)
-
-            for conflict in conflicts:
-                ws_conflicts.append(
-                    [
-                        conflict.get(header, "")
-                        for header in conflict_headers
-                    ]
-                )
-
-    else:
-        # CSV: no template
-        wb = openpyxl.Workbook()
-
-        # Rename the default worksheet to Input
-        ws_input = wb.active
-        ws_input.title = "Input"
-
-        for row in rows:
-            row_data = {"row_number": row.row_number}
-
-            if row.input_data:
-                for key in input_headers:
-                    row_data[key] = row.input_data.get(key, "")
-
-            ws_input.append(
-                [
-                    row_data.get(key, "")
-                    for key in ["row_number"] + input_headers
-                ]
-            )
-
-        # Output sheet
-        ws_output = wb.create_sheet("Output")
-        output_headers = OUTPUT_HEADERS
-
-        ws_output.append(
-            ["row_number"]
-            + input_headers
-            + ["status", "error_message"]
-            + output_headers
         )
 
-        for row in rows:
-            row_data = {
-                "row_number": row.row_number,
-                "status": row.status,
-            }
+    # Output contains only terminal rows with exportable result data.
+    output_headers = ["row_number"] + OUTPUT_HEADERS
+    ws_output = wb.create_sheet("Output")
+    ws_output.append(output_headers)
+    for cell in ws_output[1]:
+        cell.font = Font(bold=True)
 
-            if row.input_data:
-                for key in input_headers:
-                    row_data[key] = row.input_data.get(key, "")
+    for row in rows:
+        if row.status not in ("completed", "failed") or not row.result_data:
+            continue
+        ws_output.append(
+            [
+                row.row_number,
+                *_build_output_row_data(
+                    row,
+                    OUTPUT_HEADERS,
+                    OUTPUT_HEADER_TO_FIELD,
+                ),
+            ]
+        )
 
-            if row.error_message:
-                row_data["error_message"] = row.error_message
-
-            if row.result_data and row.status in ("completed", "failed"):
-                header_to_field = OUTPUT_HEADER_TO_FIELD
-
-                for header in output_headers:
-                    field_path = header_to_field.get(header)
-
-                    if field_path:
-                        if (
-                            field_path.startswith("item_features[")
-                            or field_path.startswith("attributes[")
-                        ):
-                            value = _get_nested_value(
-                                row.result_data,
-                                field_path,
-                            )
-
-                            if field_path.endswith(".value"):
-                                row_data[header] = _extract_value_from_field(
-                                    value
-                                )
-                            else:
-                                row_data[header] = (
-                                    str(value)
-                                    if value is not None
-                                    else ""
-                                )
-
-                        else:
-                            field_data = row.result_data.get(field_path)
-                            row_data[header] = _extract_value_from_field(
-                                field_data
-                            )
-
-            ws_output.append(
-                [
-                    row_data.get(key, "")
-                    for key in [
-                        "row_number",
-                        *input_headers,
-                        "status",
-                        "error_message",
-                        *output_headers,
-                    ]
-                ]
-            )
+    # Conflicts is always present and reflects the current result data.
+    conflict_headers = [
+        "row_number",
+        "field",
+        "selected_value",
+        "selected_uom",
+        "selected_source",
+        "conflicting_value",
+        "conflicting_uom",
+        "conflicting_source",
+        "recommendation",
+    ]
+    ws_conflicts = wb.create_sheet("Conflicts")
+    ws_conflicts.append(conflict_headers)
+    for cell in ws_conflicts[1]:
+        cell.font = Font(bold=True)
+    for conflict in _collect_conflicts(rows):
+        ws_conflicts.append([conflict.get(header, "") for header in conflict_headers])
 
     return wb
 

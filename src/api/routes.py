@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -15,8 +14,6 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse
-from starlette.background import BackgroundTask
-
 from api.models import (
     CreditsResponse,
     ErrorResponse,
@@ -26,11 +23,7 @@ from api.models import (
     JobStatusResponse,
     RetryFailedResponse,
 )
-from api.storage import (
-    get_output_file_path,
-    resolve_safe_output_path,
-    save_upload_file,
-)
+from api.storage import save_upload_file
 from api.output_generator import generate_output, generate_partial_output
 from database import repositories
 from database.models import Job
@@ -221,50 +214,18 @@ async def download_job_output(job_id: str) -> FileResponse:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # If final output exists, use it (completed jobs)
-    if job.output_file_path:
-        safe_path = resolve_safe_output_path(job_id, job.output_file_path)
-        if safe_path is None:
-            raise HTTPException(status_code=404, detail="Output file not found")
-
-        short_job_id = str(job.id)[:8]
-        ext = ".xlsx"
-        download_name = f"enriched_{short_job_id}{ext}"
-
-        return FileResponse(
-            path=safe_path,
-            filename=download_name,
-            media_type=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
-        )
-
-    # Otherwise, try to generate partial output
-    from api.output_generator import generate_partial_output
-    temp_path = generate_partial_output(job_id)
-    if temp_path is None:
+    output_path = generate_output(job_id)
+    if output_path is None or not output_path.exists():
+        from api.output_generator import generate_partial_output
+        output_path = generate_partial_output(job_id)
+    if output_path is None or not output_path.exists():
         raise HTTPException(status_code=409, detail="No processed rows available yet")
 
     short_job_id = str(job.id)[:8]
-    ext = ".xlsx"
-    download_name = f"enriched_{short_job_id}{ext}"
-
-    # Clean up temp file after response is sent
-    def cleanup_temp_file():
-        try:
-            temp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
-
     return FileResponse(
-        path=temp_path,
-        filename=download_name,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            if job.input_format == "xlsx"
-            else "text/csv"
-        ),
-        background=BackgroundTask(lambda: temp_path.unlink(missing_ok=True)),
+        path=output_path,
+        filename=f"enriched_{short_job_id}.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
