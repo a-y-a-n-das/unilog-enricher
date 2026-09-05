@@ -117,12 +117,12 @@ class EvidenceBuilder:
                 content = f"[SCRAPE FAILED: {metadata.get('error', 'unknown error')}]"
 
             # -------------------------------------------------
-            # Skip excessively large documents (>100K chars).
+            # Skip excessively large PDF documents (>100K chars).
             # -------------------------------------------------
-            MAX_DOC_CHARS = 100_000
-            if raw_chars > MAX_DOC_CHARS:
+            MAX_PDF_CHARS = 100_000
+            if document_type == "pdf" and raw_chars > MAX_PDF_CHARS:
                 LOGGER.info(
-                    "[Evidence] #%d SKIPPED_LARGE | "
+                    "[Evidence] #%d SKIPPED_LARGE_PDF | "
                     "type=%s | chars=%d | url=%s",
                     document_index,
                     document_type,
