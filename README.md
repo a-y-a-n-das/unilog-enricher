@@ -17,10 +17,10 @@ Product enrichment pipeline that ingests product data (CSV/XLSX), performs web r
 │  CSV/XLSX   │────▶│  Job/Row DB  │────▶│  Processing     │────▶│  Enriched    │
 │  Upload     │     │  (PostgreSQL)│     │  Pipeline       │     │  Output      │
 └─────────────┘     └──────────────┘     │  (per row)      │     └──────────────┘
-                                           │  Research →     │
-                                           │  Evidence →     │
-                                           │  Extraction     │
-                                           └─────────────────┘
+                                         │  Research →     │
+                                         │  Evidence →     │
+                                         │  Extraction     │
+                                         └─────────────────┘
 ```
 
 ### Pipeline per row
