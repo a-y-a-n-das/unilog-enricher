@@ -1,3 +1,51 @@
+## 📊 By the Numbers
+
+*Based on 100+ products processed across multiple enrichment executions.*
+
+| Metric | Result |
+|---|---:|
+| **Structured output fields** | **250+** |
+| **Standardized attributes enriched** | **25+ / 50 per product** |
+| **Maximum attributes enriched** | **50 / 50** |
+| **Average column populated per row** | **100+** |
+| **Manufacturer URL coverage** | **95%** |
+| **Reference URL coverage** | **100%** |
+| **Product image coverage** | **~78%** |
+| **Datasheets / manuals / technical documents** | **~80%** |
+| **Country of origin identified** | **~74%** |
+| **UPC / EAN / GTIN identified** | **~83%** |
+| **Document types supported** | **PDFs & Text** |
+| **Input / output formats** | **XLSX** |
+
+### 🔎 What UniLog Enriches
+
+UniLog can enrich products across:
+
+- **Product identity & manufacturer information**
+- **Product classification**
+- **Multiple description types**
+- **Technical features**
+- **50 standardized product attributes**
+- **UPC / EAN / GTIN / UNSPSC identifiers**
+- **Commercial information**
+- **Dimensions & weight**
+- **Product images**
+- **SDS and technical documentation**
+- **Manufacturer URLs and reference sources**
+- **Conflicting values across multiple sources**
+
+### 🧠 Evidence-Driven Enrichment
+
+UniLog follows a research-first pipeline:
+
+**Search → Source Selection → Document Retrieval → Evidence Building → Structured Extraction**
+
+Rather than relying solely on model knowledge, UniLog researches multiple sources and prioritizes manufacturer and authoritative documentation to ground extracted product information.
+
+The **50 standardized attributes are product-dependent**. Across 100+ products, typical enrichment reaches **25+ attributes per product**, while products with sufficiently detailed manufacturer documentation can reach **50/50 attributes**. The fields are **product-dependent**. A product such as sandpaper is not expected to have the same number of attributes as an electrical component, machine, or industrial instrument.
+
+The broader schema contains **250+ possible fields**, covering product information, descriptions, attributes, identifiers, commercial data, dimensions, media, and documentation.
+
 # UniLog Enricher
 
 Product enrichment pipeline that ingests product data (CSV/XLSX), performs web research using Exa search, scrapes manufacturer pages and PDFs, and extracts structured product data via LLM.
